@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>autoracing_ros</name>
+  <version>1.0.0</version>
+  <description>Autonomous Racing package with action server and safe target finder.</description>
+
+  <maintainer email="allemmbinn@gmail.com">Allen Emmanuel Binny</maintainer>
+  <author email="allemmbinn@gmail.com">Allen Emmanuel Binny</author>
+
+  <license>BSD</license>
+
+  <url type="website">http://wiki.ros.org/</url>
+  <url type="repository">https://github.com/FocasLab/focaslab_f1tenth</url>
+  <url type="bugtracker">https://github.com/FocasLab/focaslab_f1tenth/issues</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>rospy</depend>
+  <depend>std_srvs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>autoexpl_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>actionlib</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>pcl_ros</depend>
+  <depend>pcl_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>ackermann_msgs</depend>
+</package>
