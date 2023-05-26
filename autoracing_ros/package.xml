@@ -19,7 +19,7 @@
   <depend>rospy</depend>
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
-  <depend>autoexpl_msgs</depend>
+  <depend>autoracing_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>actionlib</depend>
   <depend>tf2</depend>

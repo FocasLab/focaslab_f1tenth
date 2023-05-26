@@ -8,7 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(catkin REQUIRED COMPONENTS
   std_srvs
   geometry_msgs
-  autoexpl_msgs
+  autoracing_msgs
   visualization_msgs
   roscpp
   rospy
@@ -42,11 +42,11 @@ find_package(Boost REQUIRED COMPONENTS system)
 catkin_package(
  INCLUDE_DIRS
   include
-#  LIBRARIES autoexpl_ros
+#  LIBRARIES autoracing_ros
  CATKIN_DEPENDS
   std_srvs
   geometry_msgs
-  autoexpl_msgs
+  autoracing_msgs
   visualization_msgs
   roscpp
   rospy
@@ -74,7 +74,6 @@ include
 # Link the nodes
 add_executable(scots_action_server src/scotsActionServer.cpp)
 add_executable(scots_action_client src/scotsActionClient.cpp)
-add_executable(origin_pose_publisher src/origin_pose_publisher.cpp)
 add_executable(robot_pose_publisher src/robot_pose_publisher.cpp)
 
 target_link_libraries(
@@ -84,11 +83,6 @@ target_link_libraries(
 
 target_link_libraries(
   scots_action_client
-  ${catkin_LIBRARIES}
-)
-
-target_link_libraries(
-  origin_pose_publisher
   ${catkin_LIBRARIES}
 )
 
@@ -103,7 +97,7 @@ target_link_libraries(
 #   origin_pose_publisher
 #   robot_pose_publisher
 #   # The one below is the name of your package!!
-#   ${autoexpl_ros_EXPORTED_TARGETS}
+#   ${autoracing_ros_EXPORTED_TARGETS}
 # )
 
 #############
@@ -151,7 +145,7 @@ target_link_libraries(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_autoexpl_ros.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_autoracing_ros.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

@@ -1,13 +1,13 @@
 /*
  * File Name: robot_pose_publisher.cpp
  *
- * Author: Jay Bhagiya 
+ * Author: Allen Emmanuel Binny
 */
 
 // ros includes
 #include <ros/ros.h>
 #include <geometry_msgs/Pose2D.h>
-#include <geometry_msgs/PoseStamped.h>
+//#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -24,20 +24,17 @@ int main(int argc, char** argv)
 	// config parameter defined
 	std::string map_frame, base_frame;
 	double publish_frequency;
-	bool is_stamped;
+	//bool is_stamped;
 	ros::Publisher p_pub;
 
 	// config parameters
-	nh_priv.param<std::string>("map_frame", map_frame, "origin");
-	nh_priv.param<std::string>("base_frame", base_frame, "base_footprint");
+	nh_priv.param<std::string>("/behavior_controller/map_frame", map_frame, "/behavior_controller/map_frame");
+	nh_priv.param<std::string>("/f1tenth_simulator/base_frame", base_frame, "/f1tenth_simulator/base_frame");
 	nh_priv.param<double>("publish_frequency", publish_frequency, 10);
-	nh_priv.param<bool>("is_stamped", is_stamped, false);
+	//nh_priv.param<bool>("is_stamped", is_stamped, false);
 
 	// robot pose publisher handle
-	if(is_stamped)
-		p_pub = nh.advertise<geometry_msgs::PoseStamped>("/robot_pose", 10);
-	else
-		p_pub = nh.advertise<geometry_msgs::Pose2D>("/robot_pose", 10);
+	p_pub = nh.advertise<geometry_msgs::Pose2D>("/robot_pose", 10);
 
 	// creates the listener;
 	tf2_ros::Buffer tfbBuffer;
@@ -58,24 +55,24 @@ int main(int argc, char** argv)
 			position = transformStamped.transform.translation;
 			orientation = transformStamped.transform.rotation;
 
-			// storing pose stamped data
-			geometry_msgs::PoseStamped pose_stamped;
+			// // storing pose stamped data
+			// geometry_msgs::PoseStamped pose_stamped;
 
-			// frame and time
-			pose_stamped.header.frame_id = map_frame;
-			pose_stamped.header.stamp = ros::Time::now();
+			// // frame and time
+			// pose_stamped.header.frame_id = map_frame;
+			// pose_stamped.header.stamp = ros::Time::now();
 
-			// position
-			pose_stamped.pose.position.x = position.x;
-			pose_stamped.pose.position.y = position.y;
-			pose_stamped.pose.position.z = position.z;
+			// // position
+			// pose_stamped.pose.position.x = position.x;
+			// pose_stamped.pose.position.y = position.y;
+			// pose_stamped.pose.position.z = position.z;
 
-			// orientation
-			pose_stamped.pose.orientation = orientation;
+			// // orientation
+			// pose_stamped.pose.orientation = orientation;
 
 			// storing simple robot pose data
 			geometry_msgs::Pose2D robot_pose;
-			
+
 			tf2::Quaternion q(orientation.x, orientation.y, orientation.z, orientation.w);
 			tf2::Matrix3x3 m(q);
 			
@@ -86,10 +83,7 @@ int main(int argc, char** argv)
 			robot_pose.y = position.y;
 			robot_pose.theta = yaw;
 
-			if(is_stamped)
-				p_pub.publish(pose_stamped);
-			else
-				p_pub.publish(robot_pose);
+			p_pub.publish(robot_pose);
 		}
 		
 		catch (tf2::TransformException &ex) {

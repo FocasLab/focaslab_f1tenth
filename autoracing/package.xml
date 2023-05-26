@@ -2,7 +2,7 @@
 <package format="2">
   <name>autoracing</name>
   <version>1.0.0</version>
-  <description>Ros package for the Autonomous Exploration (meta package).</description>
+  <description>Ros package for the Autonomous Racing (meta package).</description>
 
   <maintainer email="allemmbinn@gmail.com">Allen Emmanuel Binny</maintainer>
   <author email="allemmbinn@gmail.com">Allen Emmanuel Binny</author>

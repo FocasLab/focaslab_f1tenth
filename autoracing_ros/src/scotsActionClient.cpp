@@ -1,5 +1,5 @@
 /*
- * File Name: scotsActionServer.cpp
+ * File Name: scotsActionClient.cpp
  *
  * Author: Jay Bhagiya 
  * 
@@ -10,7 +10,7 @@
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
-#include <autoracing_msgs/AutoExplAction.h>
+#include <autoracing_msgs/AutoRacingAction.h>
 #include <autoracing_msgs/Target.h>
 
 // obstacle includes
@@ -26,22 +26,21 @@ int main(int argc, char** argv) {
 
 	// creating simple action client
 	// ture for client needs to spin its own thread
-	actionlib::SimpleActionClient<autoexpl_msgs::AutoExplAction> ac_("/scots", true);
+	actionlib::SimpleActionClient<autoracing_msgs::AutoRacingAction> ac_("/scots", true);
 
 	// waiting till action server is not started.
 	std::cout << "Waiting for for action server to start.\n" << std::endl;
 	ac_.waitForServer();
 
-	std::cout << "Action server is started, sending goals.." << std::endl;
+		std::cout << "Action server is started, sending goals.." << std::endl;
 
-	autoexpl_msgs::AutoExplGoal goal;
+	autoracing_msgs::AutoRacingGoal goal;
 
 	// adding targets to the goal
 	std::vector<std::vector<double>> target_data = {
-		{0.35, 0.75, 0.30, 0.70},
-		{0.85, 1.25, 9.00, 9.40},
-		{0.35, 0.75, 4.80, 5.20},
-		{0.35, 0.75, 9.00, 9.40}
+		{-0.5, 0.0, -2.5, -3},
+		{3, 3.5, 8, 8.5},
+		{8, 8.5, -0.5, 0},
 	};
 
 	// total number of targets
@@ -51,7 +50,7 @@ int main(int argc, char** argv) {
 		// total number of points in one target
 		int num_points = target_data[i].size();
 
-		autoexpl_msgs::Target tr;
+		autoracing_msgs::Target tr;
 		tr.id = i;
 
 		for(int j = 0; j < num_points; j++) {

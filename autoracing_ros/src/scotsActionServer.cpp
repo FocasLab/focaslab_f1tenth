@@ -12,6 +12,7 @@
 
 // ros robot includes
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <ackermann_msgs/AckermannDriveStamped.h>
 #include <geometry_msgs/Point.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -101,7 +102,6 @@ class scotsActionServer
 		static const int state_dim = 3;
 		static const int input_dim = 2;
 		static constexpr double tau = 2.1;
-		static const double lr = 
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -113,7 +113,7 @@ class scotsActionServer
 	public:
 		scotsActionServer(std::string name) : 
 		// Bind the callback to the action server. False is for thread spinning
-		as_(nh_, name, boost::bind(&scotsActionServer::processGoal_1, this, _1), false),
+		as_(nh_, name, boost::bind(&scotsActionServer::processGoal, this, _1), false),
 		action_name_(name) {
 			// subscribers
 			robot_pose = nh_.subscribe(pose_topic_name_, 10, &scotsActionServer::robotPoseCallback_2, this);
@@ -194,7 +194,7 @@ class scotsActionServer
 			// visaulization parameters
 			visualization_msgs::Marker points;
 
-			points.header.frame_id = "origin";
+			points.header.frame_id = "map";
 			points.header.stamp = ros::Time::now();
 			
 			points.ns = "obstacles";
@@ -253,7 +253,7 @@ class scotsActionServer
 			// visaulization parameters
 			visualization_msgs::Marker frontier, target;
 
-			frontier.header.frame_id = target.header.frame_id = "origin";
+			frontier.header.frame_id = target.header.frame_id = "";
 			frontier.header.stamp = target.header.stamp = ros::Time::now();
 			
 			frontier.ns = "frontier_window";
@@ -313,39 +313,7 @@ class scotsActionServer
 			return win_domain;
 		}
 
-		// bool rotateRobotForSomeTime(const int time) {
-
-		// 	geometry_msgs::Twist vel_msg_turtle;
-		// 	vel_msg_turtle.linear.x = 0.0;
-		// 	vel_msg_turtle.angular.z = 0.1;
-
-		// 	// this is to maintain, that robot will receive same speed for tau time.
-		// 	ros::Time beginTime = ros::Time::now();
-		// 	ros::Duration secondsIWantToSendMessagesFor = ros::Duration(time);
-		// 	ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
-
-		// 	while(ros::Time::now() < endTime )
-		// 	{
-		// 		robot_drive.publish(vel_msg_turtle);
-
-		// 		// Time between messages, so you don't blast out an thousands of
-		// 		// messages in your tau secondperiod
-		// 		ros::Duration(0.1).sleep();
-		// 	}
-		// 	return true;
-		// }
-
 		bool reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
-			// //defining dynamics of robot
-			// auto vehicle_post = [](state_type &x, const input_type &u) {
-			// 	auto rhs = [](state_type& xx, const state_type &x, const input_type &u) {
-			// 		xx[0] = u[0] * std::cos(x[2]); 
-			// 		xx[1] = u[0] * std::sin(x[2]);
-			// 		xx[2] = u[1];
-			// 	};
-			// 	scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -359,13 +327,13 @@ class scotsActionServer
 			// };
 			
 			// Kinematic Bicycle Model
-			double lr = 0.17145
-			double lf = 0.15875
-			double dr = lr/(lr+lf)
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double alpha=std::atan(std::tan(u[1]) * dr);
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(u[1]) * dr);
 			    xx[0] = u[0] * std::cos(alpha + x[2]);
 			    xx[1] = u[0] * std::sin(alpha + x[2]);
 			    xx[2] = u[0] * std::sin(alpha)/lr;
@@ -377,6 +345,7 @@ class scotsActionServer
 			// defining target set
 			auto target = [&tr](const state_type& x) {
 				// function returns 1 if cell associated with x is in target set 
+				std::cout << "Target Points: " << tr.points[0] << tr.points[2] << "," <<tr.points[1] << tr.points[3] << std::endl;
 				if (tr.points[0] <= x[0] && x[0] <= tr.points[1] && tr.points[2] <= x[1] && x[1] <= tr.points[3])
 				  return true;
 				return false;
@@ -388,12 +357,12 @@ class scotsActionServer
 			// path visualization object
 			nav_msgs::Path path;
 			path.header.stamp = ros::Time::now();
-			path.header.frame_id = "origin";
+			path.header.frame_id = "map";
 
 			geometry_msgs::PoseStamped path_poses;
 
 			path_poses.header.stamp = ros::Time::now();
-			path_poses.header.frame_id = "origin";
+			path_poses.header.frame_id = "map";
 
 			path_poses.pose.position.x = robot_state[0];
 			path_poses.pose.position.y = robot_state[1];
@@ -493,15 +462,6 @@ class scotsActionServer
 			//defining dynamics of robot
 			ROS_INFO_STREAM("Publishing the trajectory..");
 
-			// auto vehicle_post = [](state_type &x, const input_type &u) {
-			// 	auto rhs = [](state_type& xx, const state_type &x, const input_type &u) {
-			// 		xx[0] = u[0] * std::cos(x[2]); 
-			// 		xx[1] = u[0] * std::sin(x[2]);
-			// 		xx[2] = u[1];
-			// 	};
-			// 	scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -515,13 +475,13 @@ class scotsActionServer
 			// };
 
 			// Kinematic Bicycle Model
-			double lr = 0.17145
-			double lf = 0.15875
-			double dr = lr/(lr+lf)
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double alpha=std::atan(std::tan(u[1]) * dr);
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(u[1]) * dr);
 			    xx[0] = u[0] * std::cos(alpha + x[2]);
 			    xx[1] = u[0] * std::sin(alpha + x[2]);
 			    xx[2] = u[0] * std::sin(alpha)/lr;
@@ -543,12 +503,12 @@ class scotsActionServer
 			// path visualization objects
 			nav_msgs::Path trajectory;
 			trajectory.header.stamp = ros::Time::now();
-			trajectory.header.frame_id = "origin";
+			trajectory.header.frame_id = "map";
 
 			geometry_msgs::PoseStamped trajectory_poses;
 
 			trajectory_poses.header.stamp = ros::Time::now();
-			trajectory_poses.header.frame_id = "origin";
+			trajectory_poses.header.frame_id = "map";
 
 			trajectory_poses.pose.position.x = robot_state[0];
 			trajectory_poses.pose.position.y = robot_state[1];
@@ -675,13 +635,13 @@ class scotsActionServer
 			// };
 
 			// Kinematic Bicycle Model
-			double lr = 0.17145
-			double lf = 0.15875
-			double dr = lr/(lr+lf)
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double alpha=std::atan(std::tan(u[1]) * dr);
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(u[1]) * dr);
 			    xx[0] = u[0] * std::cos(alpha + x[2]);
 			    xx[1] = u[0] * std::sin(alpha + x[2]);
 			    xx[2] = u[0] * std::sin(alpha)/lr;
@@ -715,7 +675,7 @@ class scotsActionServer
 			std::cout << std::endl;
 			ss.print_info();
 			
-			input_type i_lb={{-0.22, -0.11}};
+			input_type i_lb={{0, -0.11}};
 			input_type i_ub={{ 0.22,  0.11}};
 			input_type i_eta={{.02, .01}};
 			  

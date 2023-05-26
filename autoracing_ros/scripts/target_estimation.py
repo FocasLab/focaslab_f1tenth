@@ -3,9 +3,9 @@
 # ros includes
 import rospy
 import actionlib
-from autoexpl_msgs.msg import AutoExplAction
-from autoexpl_msgs.msg import AutoExplGoal
-from autoexpl_msgs.msg import Target
+from autoracing_msgs.msg import AutoRacingAction
+from autoracing_msgs.msg import AutoRacingGoal
+from autoracing_msgs.msg import Target
 from nav_msgs.msg import OccupancyGrid
 from std_srvs.srv import Empty, EmptyResponse
 
@@ -16,7 +16,7 @@ from typing import final
 
 class targetFinder:
 	"""docstring for targetFinder"""
-	def __init__(self, resolution=0.05, target_window=8, robot_dimensions=[0.2, 0.2]):
+	def __init__(self, resolution=0.05, target_window=8, robot_dimensions=[0.4, 0.3]):
 
 		# assert isinstance(target_window, (int)), "Target window must be integer, Recieved type %r" % type(target_window).__name__
 
@@ -43,12 +43,13 @@ class targetFinder:
 		"""
 
 		assert isinstance(frontier_clearance, (int)), "Frontier clearance must be integer, Recieved type %r" % type(frontier_clearance).__name__
-		assert frontier_clearance >= 2, "Frontier Clearance must be greater than or equal to 2, Recieved frontier clearance is %r" % frontier_clearance
+		assert frontier_clearance >= 1, "Frontier Clearance must be greater than or equal to 0.5, Recieved frontier clearance is %r" % frontier_clearance
 		# assert clearance > self.resolution, "Clearance must not be less than resolution, Recieved clearance is %r, and resolution is %r" % (clearance, self.resolution)
 
 		maps = maps[0]
 		potential_targets = []
-		
+
+		# TODO : Find out what clearance means		
 		clearance = clearance / self.resolution
 		cut_off = clearance // 2
 		frontier_window = self.target_window + frontier_clearance + clearance
@@ -232,7 +233,7 @@ class scotsActionClient:
 		self.total_systhessis_time = 0
 		self.total_completion_time = 0
 
-		self._ac = actionlib.SimpleActionClient("/scots", AutoExplAction)
+		self._ac = actionlib.SimpleActionClient("/scots", AutoRacingAction)
 		self._ac.wait_for_server()
 
 		rospy.loginfo("Action Server is Up, starting to send goals.")
@@ -241,7 +242,7 @@ class scotsActionClient:
 	def send_goal(self, targets):
 		
 		# Create Goal message for Simple Action Server
-		goal = AutoExplGoal(targets=targets)
+		goal = AutoRacingGoal(targets=targets)
 		
 		'''
 			* done_cb is set to the function pointer of the function which should be called once 
@@ -254,7 +255,6 @@ class scotsActionClient:
 		
 		rospy.loginfo("Goal has been sent.")
 
-
 	def get_time(self):
 		return self.total_systhessis_time, self.total_completion_time
 
@@ -265,7 +265,6 @@ class scotsActionClient:
 		rospy.loginfo("Target id, {}".format(result.target_id))
 		rospy.loginfo("Synthesis Time, {}".format(result.synthesis_time))
 		rospy.loginfo("Completion Time,  {}".format(result.completion_time))
-
 
 	def feedback_callback(self, feedback):
 		rospy.loginfo("Current Pose: ({}, {}, {})".format(round(feedback.curr_pose.x, 2), round(feedback.curr_pose.y, 2), round(feedback.curr_pose.theta, 2)))
@@ -289,7 +288,6 @@ class mapData:
 		self.if_send_new_goal = False
 		self.new_goal_service_name = "/new_goal"
 		self.new_goal_service = rospy.Service(self.new_goal_service_name, Empty, self.new_goal_callback)
-
 
 	def map_data_callback(self, msg):
 		self.width = msg.info.width
@@ -333,7 +331,6 @@ def get_safe_targets(target_finder, clearance, frontier_clearance, safety_net, m
 	safe_targets = target_finder.get_best_targets(segregated_targets, max_indices, safety_net, maps, width, height)
 
 	return safe_targets
-
 
 if __name__ == '__main__':
 
