@@ -1,7 +1,7 @@
 <launch>
 
     <!-- Running Nodes -->
-    <!-- node name= "origin_pose_publisher" pkg= "autoracing_ros" type="origin_pose_publisher" output="screen"/ -->
+    <node name= "origin_pose_publisher" pkg= "autoracing_ros" type="origin_pose_publisher" output="screen"/>
     <node name= "robot_pose_publisher" pkg= "autoracing_ros" type="robot_pose_publisher" output="screen"/>
     <node name= "scotsActionServer" pkg= "autoracing_ros" type="scots_action_server" output="screen"/>
     <!-- node name= "scotsActionClient" pkg= "autoracing_ros" type="scots_action_client" output="screen"/-->
@@ -13,7 +13,7 @@
 
     <group if="$(arg record)">
         <node name="rosbag_record_pick" pkg="rosbag" type="record"
-        args="record -O $(find autoracing_ros)/bag_files/$(arg rec_name) /cmd_vel" output="screen"/>
+        args="record -O $(find autoexpl_ros)/bag_files/$(arg rec_name) /cmd_vel" output="screen"/>
     </group> -->
 
 </launch>

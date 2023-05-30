@@ -75,6 +75,7 @@ include
 add_executable(scots_action_server src/scotsActionServer.cpp)
 add_executable(scots_action_client src/scotsActionClient.cpp)
 add_executable(robot_pose_publisher src/robot_pose_publisher.cpp)
+add_executable(origin_pose_publisher src/origin_pose_publisher.cpp)
 
 target_link_libraries(
   scots_action_server
@@ -83,6 +84,11 @@ target_link_libraries(
 
 target_link_libraries(
   scots_action_client
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(
+  origin_pose_publisher
   ${catkin_LIBRARIES}
 )
 

@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: autoracing_ros
+Description: Description of autoracing_ros
+Version: 1.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: std_srvs geometry_msgs autoracing_msgs visualization_msgs roscpp rospy actionlib tf2_ros pcl_ros pcl_msgs sensor_msgs ackermann_msgs

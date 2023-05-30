@@ -7,7 +7,6 @@
 // ros includes
 #include <ros/ros.h>
 #include <geometry_msgs/Pose2D.h>
-//#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
@@ -22,16 +21,14 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh_priv("~");
 
 	// config parameter defined
-	std::string map_frame, base_frame;
+	std::string origin_frame, base_frame;
 	double publish_frequency;
-	//bool is_stamped;
 	ros::Publisher p_pub;
 
 	// config parameters
-	nh_priv.param<std::string>("/behavior_controller/map_frame", map_frame, "/behavior_controller/map_frame");
+	nh_priv.param<std::string>("origin_frame", origin_frame, "origin");
 	nh_priv.param<std::string>("/f1tenth_simulator/base_frame", base_frame, "/f1tenth_simulator/base_frame");
 	nh_priv.param<double>("publish_frequency", publish_frequency, 10);
-	//nh_priv.param<bool>("is_stamped", is_stamped, false);
 
 	// robot pose publisher handle
 	p_pub = nh.advertise<geometry_msgs::Pose2D>("/robot_pose", 10);
@@ -50,27 +47,12 @@ int main(int argc, char** argv)
 		geometry_msgs::TransformStamped transformStamped;
 
 		try {
-			transformStamped = tfbBuffer.lookupTransform(map_frame, base_frame, ros::Time(0));
+			transformStamped = tfbBuffer.lookupTransform(origin_frame, base_frame, ros::Time(0));
 
 			position = transformStamped.transform.translation;
 			orientation = transformStamped.transform.rotation;
 
-			// // storing pose stamped data
-			// geometry_msgs::PoseStamped pose_stamped;
 
-			// // frame and time
-			// pose_stamped.header.frame_id = map_frame;
-			// pose_stamped.header.stamp = ros::Time::now();
-
-			// // position
-			// pose_stamped.pose.position.x = position.x;
-			// pose_stamped.pose.position.y = position.y;
-			// pose_stamped.pose.position.z = position.z;
-
-			// // orientation
-			// pose_stamped.pose.orientation = orientation;
-
-			// storing simple robot pose data
 			geometry_msgs::Pose2D robot_pose;
 
 			tf2::Quaternion q(orientation.x, orientation.y, orientation.z, orientation.w);

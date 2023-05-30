@@ -56,7 +56,7 @@ class targetFinder:
 				if maps[i][j] == 0:
 					[neighbor_map, x_s, y_s, x_e, y_e] = self.neighbors(frontier_window, i, j, maps, width, height)
 					if not any(100 in n for n in neighbor_map):  # Check if there are any obstacles nearby
-						potential_targets.append([[x_e, y_e], [x_s, y_s]])
+						potential_targets.append([[x_s, y_s], [x_e, y_e]])
 
 		return potential_targets
 	
@@ -91,6 +91,7 @@ class targetFinder:
 		"""
 		splitValue = len(all_targets)//5
 		safe_targets = []
+		safe_targets.append(all_targets[0])
 		for i in range(1,6):
 			safe_targets.append(all_targets[splitValue*i - 1])
 		return safe_targets
@@ -218,8 +219,6 @@ if __name__ == '__main__':
 			maps = mapdata.get_map()
 			width, height, resolution = mapdata.get_map_dimensions()
 
-			print("STUCK IN LOOP HERE")
-
 			if(target_window < 0):
 				rospy.loginfo("No targets found. Window too low.")
 				break
@@ -244,11 +243,10 @@ if __name__ == '__main__':
 						tr.points.append(round(safe_targets[i][j][0] * resolution, 2))
 					for j in range(len(safe_targets[i])):
 						tr.points.append(round(safe_targets[i][j][1] * resolution, 2))
-					
-					print("Target points :%s \n" % targets)
-					targets.append(tr)
 
-				print("CHECK FOR CONTROL ", mapdata.if_send_new_goal)
+					targets.append(tr)
+				
+				print("Target points :%s \n" % targets)
 
 				if any(targets) and mapdata.if_send_new_goal:
 					print("Goal targets, %r" % targets)
