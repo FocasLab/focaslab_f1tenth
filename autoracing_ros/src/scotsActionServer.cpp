@@ -67,7 +67,7 @@ class scotsActionServer
 		std::string pose_topic_name_ = "/robot_pose";
 		ros::Subscriber robot_pose;
 
-		std::string drive_topic_name_ = "/drive_control";
+		std::string drive_topic_name_ = "/drive";
 		ros::Publisher robot_drive;
 
 		// map subscriber
@@ -79,8 +79,8 @@ class scotsActionServer
 		std_srvs::Empty::Response resp;
 
 		// origin update client
-		//std::string origin_update_service_name = "/update_origin";
-		//ros::ServiceClient origin_update_client;
+		std::string origin_update_service_name = "/update_origin";
+		ros::ServiceClient origin_update_client;
 
 		// 
 		std::string send_new_goal_service_name = "/new_goal";
@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 2.1;
+		static constexpr double tau = 3.1;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -116,7 +116,7 @@ class scotsActionServer
 		as_(nh_, name, boost::bind(&scotsActionServer::processGoal, this, _1), false),
 		action_name_(name) {
 			// subscribers
-			robot_pose = nh_.subscribe(pose_topic_name_, 10, &scotsActionServer::robotPoseCallback_2, this);
+			robot_pose = nh_.subscribe(pose_topic_name_, 10, &scotsActionServer::robotPoseCallback, this);
 			map_sub = nh_.subscribe(map_topic_name, 10, &scotsActionServer::mapCallback, this);
 			
 			// publishers
@@ -130,14 +130,15 @@ class scotsActionServer
 			std::cout << "Scots Action Server is started, now you can send the goals." << std::endl;
 			
 			// services
-			//origin_update_client = nh_.serviceClient<std_srvs::Empty>(origin_update_service_name);
+			origin_update_client = nh_.serviceClient<std_srvs::Empty>(origin_update_service_name);
 			send_new_goal_client = nh_.serviceClient<std_srvs::Empty>(send_new_goal_service_name);
 
 			std::cout << "Waiting for services.." << std::endl;
-			//ros::service::waitForService(origin_update_service_name, ros::Duration(10));
+			ros::service::waitForService(origin_update_service_name, ros::Duration(10));
 			ros::service::waitForService(send_new_goal_service_name, ros::Duration(10));
 			std::cout << "Done." << std::endl;
 
+			bool origin_update_success = origin_update_client.call(req, resp);
 			bool send_new_goal_success = send_new_goal_client.call(req, resp);
 		}
 
@@ -145,7 +146,7 @@ class scotsActionServer
 		{
 		}
 
-		void robotPoseCallback_2(const geometry_msgs::Pose2D &msg) {
+		void robotPoseCallback(const geometry_msgs::Pose2D &msg) {
 			curr_pose.x = msg.x;
 			curr_pose.y = msg.y;
 			curr_pose.theta = msg.theta;
@@ -183,7 +184,7 @@ class scotsActionServer
 					if(map_vector[idx] > 0)
 						map_i.push_back(1);
 					else
-						map_i.push_back(map_vector[idx]);
+						map_i.push_back(0);
 				}
 				map.push_back(map_i);
 			}
@@ -194,7 +195,7 @@ class scotsActionServer
 			// visaulization parameters
 			visualization_msgs::Marker points;
 
-			points.header.frame_id = "map";
+			points.header.frame_id = "origin";
 			points.header.stamp = ros::Time::now();
 			
 			points.ns = "obstacles";
@@ -204,8 +205,8 @@ class scotsActionServer
 
 			points.pose.orientation.w = 1;
 
-			points.scale.x = 0.1;
-			points.scale.y = 0.1;
+			points.scale.x = 0.3;
+			points.scale.y = 0.3;
 
 			points.color.r = 1.0f;
 			points.color.g = 1.0f;
@@ -251,43 +252,59 @@ class scotsActionServer
 
 		void visualizeTargets(const autoracing_msgs::Target &tr) {
 			// visaulization parameters
-			visualization_msgs::Marker frontier, target;
+			// visualization_msgs::Marker frontier, target;
+			visualization_msgs::Marker target;
 
-			frontier.header.frame_id = target.header.frame_id = "";
-			frontier.header.stamp = target.header.stamp = ros::Time::now();
-			
-			frontier.ns = "frontier_window";
+			// frontier.header.frame_id = target.header.frame_id = "map";
+			// frontier.header.stamp = target.header.stamp = ros::Time::now();
+
+			target.header.frame_id = "origin";
+			target.header.stamp = ros::Time::now();
+
+			// frontier.ns = "frontier_window";
 			target.ns = "target_window";
 			
-			frontier.id = target.id = 0;
-			frontier.type = target.type = visualization_msgs::Marker::POINTS;
-			frontier.action = target.action = visualization_msgs::Marker::ADD;
+			// frontier.id = target.id = 0;
+			// frontier.type = target.type = visualization_msgs::Marker::POINTS;
+			// frontier.action = target.action = visualization_msgs::Marker::ADD;
+			target.id = 0;
+			target.type = visualization_msgs::Marker::POINTS;
+			target.action = visualization_msgs::Marker::ADD;
 
-			frontier.pose.orientation.w = target.pose.orientation.w = 1;
+			// frontier.pose.orientation.w = target.pose.orientation.w = 1;
+			target.pose.orientation.w = 1;
 
-			frontier.scale.x = frontier.scale.y = 1 * tr.clearance;
+			// frontier.scale.x = frontier.scale.y = 1 * tr.clearance;
 			target.scale.x = target.scale.y = 1 * tr.window;
 
-			frontier.color.g = 1.0f;
+			// frontier.color.g = 1.0f;
 			target.color.r = 1.0f;
 
-			frontier.color.a = 0.5;
+			// frontier.color.a = 0.5;
 			target.color.a = 1.0;
 
-			frontier.lifetime = target.lifetime = ros::Duration();
+			// frontier.lifetime = target.lifetime = ros::Duration();
+			target.lifetime = ros::Duration();
 
 			double diff = tr.window;
-			std::vector<visualization_msgs::Marker> marker_obj = {frontier, target};
+			// std::vector<visualization_msgs::Marker> marker_obj = {frontier, target};
 
-			for(int i = 0; i < 2; i++) {
-				geometry_msgs::Point pt;
+			// for(int i = 0; i < 2; i++) {
+			// 	geometry_msgs::Point pt;
 				
-				pt.x = tr.points[0] + diff / 2.0;
-				pt.y = tr.points[2] + diff / 2.0;
+			// 	pt.x = tr.points[0] + diff / 2.0;
+			// 	pt.y = tr.points[2] + diff / 2.0;
 
-				marker_obj[i].points.push_back(pt);
-				markers_pub.publish(marker_obj[i]);
-			}
+			// 	marker_obj[i].points.push_back(pt);
+			// 	markers_pub.publish(marker_obj[i]);
+			// }
+			geometry_msgs::Point pt;
+				
+			pt.x = tr.points[0] + diff / 2.0;
+			pt.y = tr.points[2] + diff / 2.0;
+
+			target.points.push_back(pt);
+			markers_pub.publish(target);
 
 		}
 
@@ -299,8 +316,9 @@ class scotsActionServer
 				ss.itox(idx, x);
 				// function returns 1 if cell associated with x is in target set 
 				if (tr.points[0] <= x[0] && x[0] <= tr.points[1] && 
-					tr.points[2] <= x[1] && x[1] <= tr.points[3])
+					tr.points[2] <= x[1] && x[1] <= tr.points[3]){
 				  return true;
+				}
 				return false;
 			};
 
@@ -308,9 +326,18 @@ class scotsActionServer
 			tt.tic();
 			scots::WinningDomain win_domain = scots::solve_reachability_game(tf, target);
 			tt.toc();
-			std::cout << "\nWinning domain for target id " << tr.id << ", is " << win_domain.get_size() << std::endl;
+			std::cout << "\nWinning domain for target id \'" << tr.id << "\' is " << win_domain.get_size() <<std::endl;
 
 			return win_domain;
+		}
+
+		void publishDrive(double speed,double steering_angle){
+			ackermann_msgs::AckermannDriveStamped drive_msg;
+			drive_msg.drive.speed = speed;
+			drive_msg.drive.steering_angle = steering_angle;
+
+			drive_msg.header.stamp = ros::Time::now();
+			robot_drive.publish(drive_msg);
 		}
 
 		bool reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
@@ -357,22 +384,18 @@ class scotsActionServer
 			// path visualization object
 			nav_msgs::Path path;
 			path.header.stamp = ros::Time::now();
-			path.header.frame_id = "map";
+			path.header.frame_id = "origin";
 
 			geometry_msgs::PoseStamped path_poses;
 
 			path_poses.header.stamp = ros::Time::now();
-			path_poses.header.frame_id = "map";
+			path_poses.header.frame_id = "origin";
 
 			path_poses.pose.position.x = robot_state[0];
 			path_poses.pose.position.y = robot_state[1];
 			path_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
 
 			path.poses.push_back(path_poses);
-
-			// robot vel msg object
-			// geometry_msgs::Twist vel_msg_turtle;
-			ackermann_msgs::AckermannDriveStamped drive_msg;
 
 			// success flag
 			bool success = false;
@@ -389,46 +412,15 @@ class scotsActionServer
 
 				robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
-				// if(!(target(robot_state))) {
-				// 	// getting ready feedback handler
-				// 	// std::cout << "Robot's Current Pose: " << robot_state[0] << ", " 
-				// 	// 									  << robot_state[1] << ", " 
-				// 	// 									  << robot_state[2] << std::endl;
-				// 	feedback_.curr_pose = curr_pose;
-
-				// 	std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
-
-				// 	vel_msg_turtle.linear.x = control_inputs[0][0];
-				// 	vel_msg_turtle.angular.z = control_inputs[0][1];
-
-				// 	// pusblishing the current feedback to action client
-				// 	as_.publishFeedback(feedback_);
-				// }
-				// else {
-				// 	// rotote the robot for some time so the map is updated (lidar is 360, but due to limitations of slam we rotating the robot.)
-				// 	bool status = rotateRobotForSomeTime(10);
-
-				// 	vel_msg_turtle.linear.x = 0.0;
-				// 	vel_msg_turtle.angular.z = 0.0;
-
-				// 	robot_drive.publish(vel_msg_turtle);
-				// 	success = true;
-				// 	break;
-				// }
-
-				// getting ready feedback handler
-				// std::cout << "Robot's Current Pose: " << robot_state[0] << ", " 
-				// 									  << robot_state[1] << ", " 
-				// 									  << robot_state[2] << std::endl;
 				feedback_.curr_pose = curr_pose;
 
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-				/** @todo : Apply the velocities as per required**/
-				drive_msg.drive.speed = control_inputs[0][0];
-				drive_msg.drive.steering_angle = control_inputs[0][1];
+				sort(control_inputs.begin(),control_inputs.end());
 
-				// pusblishing the current feedback to action client
+				std::cout<<"Velocity 1 and Velocity 2"<<control_inputs[0][0]<<control_inputs[1][0];
+
+				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
 
 				// this is to maintain, that robot will receive same speed for tau time.
@@ -436,10 +428,10 @@ class scotsActionServer
 				ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
 				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
-				drive_msg.header.stamp = beginTime;
+				publishDrive(control_inputs[control_inputs.size()-1][0],control_inputs[control_inputs.size()-1][1]);
 				while(ros::Time::now() < endTime )
 				{
-					robot_drive.publish(drive_msg);
+					publishDrive(control_inputs[control_inputs.size()-1][0],control_inputs[control_inputs.size()-1][1]);
 
 					// Time between messages, so you don't blast out an thousands of
 					// messages in your tau secondperiod
@@ -503,12 +495,12 @@ class scotsActionServer
 			// path visualization objects
 			nav_msgs::Path trajectory;
 			trajectory.header.stamp = ros::Time::now();
-			trajectory.header.frame_id = "map";
+			trajectory.header.frame_id = "origin";
 
 			geometry_msgs::PoseStamped trajectory_poses;
 
 			trajectory_poses.header.stamp = ros::Time::now();
-			trajectory_poses.header.frame_id = "map";
+			trajectory_poses.header.frame_id = "origin";
 
 			trajectory_poses.pose.position.x = robot_state[0];
 			trajectory_poses.pose.position.y = robot_state[1];
@@ -547,51 +539,6 @@ class scotsActionServer
 			}
 			return success;
 		}
-
-		void processGoal_1(const autoracing_msgs::AutoRacingGoalConstPtr &goal) {
-			bool success = true;
-
-			double lb = width * resolution;
-			double ub = height * resolution;
-			
-			state_type s_lb={{0, 0, -3.5}};
-			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{.1, .1, .2}};
-
-			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
-			std::cout << std::endl;
-			ss.print_info();
-			
-			input_type i_lb={{-0.22, -0.11}};
-			input_type i_ub={{ 0.22,  0.11}};
-			input_type i_eta={{.02, .01}};
-			  
-			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
-			std::cout << std::endl;	
-			is.print_info();
-
-			//bool origin_update_success = origin_update_client.call(req, resp);
-
-			// Parsing targets
-			int num_targets = goal->targets.size();
-			
-			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
-
-			visualizeObstacles(ss, maps);
-			visualizeTargets(goal->targets[0]);
-
-			if(success) {
-				result_.target_id = 0;
-				result_.synthesis_time = 0.0;
-				result_.completion_time = 0.0;
-
-				bool send_new_goal_success = send_new_goal_client.call(req, resp);
-
-				std::cout << "Succeeded for: " << action_name_.c_str() << std::endl;
-				// set the action state to succeeded
-				as_.setSucceeded(result_);
-			}
-		}
 		
 		void processGoal(const autoracing_msgs::AutoRacingGoalConstPtr &goal) {
 
@@ -621,19 +568,6 @@ class scotsActionServer
 			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			// };
 
-			// /* we integrate the vehicle ode by tau sec (the result is stored in x)  */
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			// 	double beta=std::atan(std::tan(u[1]) / 2.0);
-			// 	xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			// 	xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			// 	xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			// Kinematic Bicycle Model
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
@@ -650,42 +584,44 @@ class scotsActionServer
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			// /* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
-			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.01, 0.01}};
-			//   	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
-			//   	r[0] = r[0] + c * r[2] * tau + w[0];
-			//   	r[1] = r[1] + c * r[2] * tau + w[1];
-			// };
-
+			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
 				const state_type w = {{0.01, 0.01}};
-				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
-				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
+			  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
+			  	r[0] = r[0] + c * r[2] * tau + w[0];
+			  	r[1] = r[1] + c * r[2] * tau + w[1];
 			};
+
+			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
+			// 	const state_type w = {{0.01, 0.01}};
+			// 	r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
+			// 	r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
+			// };
 
 			double lb = width * resolution;
 			double ub = height * resolution;
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{.1, .1, .2}};
+			state_type s_eta={{.45, .45, .23}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
 			ss.print_info();
 			
-			input_type i_lb={{0, -0.11}};
-			input_type i_ub={{ 0.22,  0.11}};
-			input_type i_eta={{.02, .01}};
+			/**
+			 * @todo Bring Parameters here
+			*/
+
+			double max_speed = 7.0, max_steering_angle = 0.4189;
+			input_type i_lb={{0, -1*max_steering_angle}};
+			input_type i_ub={{max_speed,  max_steering_angle}};
+			input_type i_eta={{.25, .025}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
 			is.print_info();
-
-			// update the origin
-			//bool origin_update_success = origin_update_client.call(req, resp);
-
+			
 			// success flag
 			bool success = false;
 
@@ -741,11 +677,13 @@ class scotsActionServer
 			int target_no = 0;
 			int num_targets = goal->targets.size();
 			std::vector<scots::WinningDomain> domains;
-
+			
+			
 			for(int i = 0; i < num_targets; i++) {
 				visualizeTargets(goal->targets[i]);
 				scots::WinningDomain win_domain = getDomain(ss, tf, goal->targets[i]);
 
+				std::cout<<"Total domain and Winning domain: "<<total_domain<<","<<win_domain.get_size();
 				if(0.03 * total_domain < win_domain.get_size()) {
 					domains.push_back(win_domain);
 					target_no = i;
@@ -753,6 +691,7 @@ class scotsActionServer
 				}
 				else {
 					ROS_INFO_STREAM("Winning domain is less than 3% of total domain, going for the next target.");
+					publishDrive(0.0001,0);
 				}
 			}
 
@@ -771,6 +710,7 @@ class scotsActionServer
 			}
 			else {
 				ROS_INFO_STREAM("No reachable targets, Exploration is Done..");
+				return;
 			}
 
 			ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
