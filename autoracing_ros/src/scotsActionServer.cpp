@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 3.1;
+		static constexpr double tau = 1.6;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -205,8 +205,8 @@ class scotsActionServer
 
 			points.pose.orientation.w = 1;
 
-			points.scale.x = 0.3;
-			points.scale.y = 0.3;
+			points.scale.x = 0.46;
+			points.scale.y = 0.46;
 
 			points.color.r = 1.0f;
 			points.color.g = 1.0f;
@@ -252,52 +252,29 @@ class scotsActionServer
 
 		void visualizeTargets(const autoracing_msgs::Target &tr) {
 			// visaulization parameters
-			// visualization_msgs::Marker frontier, target;
 			visualization_msgs::Marker target;
-
-			// frontier.header.frame_id = target.header.frame_id = "map";
-			// frontier.header.stamp = target.header.stamp = ros::Time::now();
 
 			target.header.frame_id = "origin";
 			target.header.stamp = ros::Time::now();
 
-			// frontier.ns = "frontier_window";
 			target.ns = "target_window";
 			
-			// frontier.id = target.id = 0;
-			// frontier.type = target.type = visualization_msgs::Marker::POINTS;
-			// frontier.action = target.action = visualization_msgs::Marker::ADD;
 			target.id = 0;
 			target.type = visualization_msgs::Marker::POINTS;
 			target.action = visualization_msgs::Marker::ADD;
 
-			// frontier.pose.orientation.w = target.pose.orientation.w = 1;
 			target.pose.orientation.w = 1;
 
-			// frontier.scale.x = frontier.scale.y = 1 * tr.clearance;
 			target.scale.x = target.scale.y = 1 * tr.window;
 
-			// frontier.color.g = 1.0f;
 			target.color.r = 1.0f;
 
-			// frontier.color.a = 0.5;
 			target.color.a = 1.0;
 
-			// frontier.lifetime = target.lifetime = ros::Duration();
 			target.lifetime = ros::Duration();
 
 			double diff = tr.window;
-			// std::vector<visualization_msgs::Marker> marker_obj = {frontier, target};
 
-			// for(int i = 0; i < 2; i++) {
-			// 	geometry_msgs::Point pt;
-				
-			// 	pt.x = tr.points[0] + diff / 2.0;
-			// 	pt.y = tr.points[2] + diff / 2.0;
-
-			// 	marker_obj[i].points.push_back(pt);
-			// 	markers_pub.publish(marker_obj[i]);
-			// }
 			geometry_msgs::Point pt;
 				
 			pt.x = tr.points[0] + diff / 2.0;
@@ -322,11 +299,11 @@ class scotsActionServer
 				return false;
 			};
 
-			std::cout << "\nSynthesis for target, " << tr.id << std::endl;
+			std::cout << "\nSynthesis for target: " << tr.id << std::endl;
 			tt.tic();
 			scots::WinningDomain win_domain = scots::solve_reachability_game(tf, target);
 			tt.toc();
-			std::cout << "\nWinning domain for target id \'" << tr.id << "\' is " << win_domain.get_size() <<std::endl;
+			std::cout << "\nWinning domain (size) for target id \'" << tr.id << "\' is " << win_domain.get_size() <<std::endl;
 
 			return win_domain;
 		}
@@ -340,7 +317,7 @@ class scotsActionServer
 			robot_drive.publish(drive_msg);
 		}
 
-		bool reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
+		void reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -378,7 +355,6 @@ class scotsActionServer
 				return false;
 			};
 
-			// @todo: Find how they got the position
 			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
 			// path visualization object
@@ -398,7 +374,7 @@ class scotsActionServer
 			path.poses.push_back(path_poses);
 
 			// success flag
-			bool success = false;
+			// bool success = false;
 
 			while(ros::ok()) {
 				
@@ -406,7 +382,7 @@ class scotsActionServer
 					std::cout << "\nPreempted request for, " << action_name_.c_str() << std::endl;
 					// set the action state to preempted
 					as_.setPreempted();
-					success = false;
+					// success = false;
 					break;
 				}
 
@@ -418,7 +394,7 @@ class scotsActionServer
 
 				sort(control_inputs.begin(),control_inputs.end());
 
-				std::cout<<"Velocity 1 and Velocity 2"<<control_inputs[0][0]<<control_inputs[1][0];
+				std::cout<<"Velocity 1 and Velocity 2: "<<control_inputs[control_inputs.size()-1][0]<<control_inputs[0][0];
 
 				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
@@ -446,11 +422,16 @@ class scotsActionServer
 
 					path_pub.publish(path);
 				}
+				if ((tr.points[0]-0.5) <= curr_pose.x && curr_pose.x <= (tr.points[1]+0.5) && (tr.points[2]-0.5) <= curr_pose.y && curr_pose.y <= (tr.points[3]+0.5)){
+					publishDrive(0.0000000001,0);
+					
+				}	
+
 			}
-			return success;
+			// return success;
 		}
 
-		bool simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
+		void simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
 			//defining dynamics of robot
 			ROS_INFO_STREAM("Publishing the trajectory..");
 
@@ -528,7 +509,9 @@ class scotsActionServer
 
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-				vehicle_post(robot_state, control_inputs[0]);
+				sort(control_inputs.begin(),control_inputs.end());
+
+				vehicle_post(robot_state, control_inputs[control_inputs.size()-1]);
 
 				trajectory_poses.pose.position.x = robot_state[0];
 				trajectory_poses.pose.position.y = robot_state[1];
@@ -537,7 +520,7 @@ class scotsActionServer
 				trajectory.poses.push_back(trajectory_poses);
 
 			}
-			return success;
+			// return success;
 		}
 		
 		void processGoal(const autoracing_msgs::AutoRacingGoalConstPtr &goal) {
@@ -545,15 +528,6 @@ class scotsActionServer
 			ros::Time t_begin = ros::Time::now();
 
 			struct rusage usage;
-
-		 	// auto vehicle_post = [](state_type &x, const input_type &u) {
-			// 	auto rhs = [](state_type& xx, const state_type &x, const input_type &u) {
-			// 		xx[0] = u[0] * std::cos(x[2]); 
-			// 		xx[1] = u[0] * std::sin(x[2]);
-			// 		xx[2] = u[1];
-			// 	};
-			// 	scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
 
 			// /* we integrate the vehicle ode by tau sec (the result is stored in x)  */
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
@@ -603,7 +577,10 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{.45, .45, .23}};
+			/**
+			 * @todo: Tuning Parameter
+			*/
+			state_type s_eta={{.4, .4, .2}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -613,17 +590,20 @@ class scotsActionServer
 			 * @todo Bring Parameters here
 			*/
 
-			double max_speed = 7.0, max_steering_angle = 0.4189;
+			double max_speed = 5.0, max_steering_angle = 0.4189;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{.25, .025}};
+			/**
+			 * @todo: Tuning Parameter
+			*/
+			input_type i_eta={{.3, .022}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
 			is.print_info();
 			
 			// success flag
-			bool success = false;
+			// bool success = false;
 
 			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
 
@@ -674,8 +654,10 @@ class scotsActionServer
 			// Parsing targets
 			abs_type total_domain = ss.size();
 			
-			int target_no = 0;
+			
 			int num_targets = goal->targets.size();
+			int target_no[num_targets];
+			int flag=0;
 			std::vector<scots::WinningDomain> domains;
 			
 			
@@ -683,49 +665,56 @@ class scotsActionServer
 				visualizeTargets(goal->targets[i]);
 				scots::WinningDomain win_domain = getDomain(ss, tf, goal->targets[i]);
 
-				std::cout<<"Total domain and Winning domain: "<<total_domain<<","<<win_domain.get_size();
+				std::cout<<"Total domain and Winning domain: "<<total_domain<<","<<win_domain.get_size()<<std::endl;
 				if(0.03 * total_domain < win_domain.get_size()) {
 					domains.push_back(win_domain);
-					target_no = i;
-					break;
+					target_no[flag++]=i;
 				}
 				else {
 					ROS_INFO_STREAM("Winning domain is less than 3% of total domain, going for the next target.");
-					publishDrive(0.0001,0);
 				}
 			}
 
 			ros::Duration synthesis_time = ros::Time::now() - s_begin;
 
+			std::cout << "Starting with the controllers." << std::endl;
+
 			if(domains.size() > 0) {
-				scots::StaticController controller = scots::StaticController(ss, is, std::move(domains[0]));
+				scots::StaticController controller[num_targets];
+				for(int i=0;i<flag;i++){
+					controller[i] = scots::StaticController(ss, is, std::move(domains[i]));
+					std::cout << "Writing to the file, for target id: " << target_no[i]<<std::endl;
+					if(write_to_file(controller[i], "autoracing"))
+						std::cout << "Done.\n";
+				}
+				for(int i=0;i<flag;i++){
+					visualizeTargets(goal->targets[target_no[i]]);
+					std::cout << "\n\nRobot started, Reaching to the target." << std::endl;
+					// success = simulatePath(controller[i], goal->targets[target_no]);
+					// success = reachTarget(controller[i], goal->targets[target_no]);
+					simulatePath(controller[i], goal->targets[target_no[i]]);
+					reachTarget(controller[i], goal->targets[target_no[i]]);
 
-				std::cout << "Writing to the file." << std::endl;
-				if(write_to_file(controller, "autoracing"))
-					std::cout << "Done.\n";
-
-				std::cout << "\n\nRobot started, Reaching to the target." << std::endl;
-				success = simulatePath(controller, goal->targets[target_no]);
-				success = reachTarget(controller, goal->targets[target_no]);
+				}
 			}
 			else {
-				ROS_INFO_STREAM("No reachable targets, Exploration is Done..");
+				ROS_INFO_STREAM("No reachable targets. Target window too small.");
 				return;
 			}
 
 			ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
 
-			if(success) {
-				result_.target_id = target_no;
-				result_.synthesis_time = synthesis_time.toSec();
-				result_.completion_time = completion_time.toSec();
+			// if(success) {
+			// 	result_.target_id = target_no;
+			// 	result_.synthesis_time = synthesis_time.toSec();
+			// 	result_.completion_time = completion_time.toSec();
 
-				bool send_new_goal_success = send_new_goal_client.call(req, resp);
+			// 	bool send_new_goal_success = send_new_goal_client.call(req, resp);
 
-				std::cout << "Succeeded for: " << action_name_.c_str() << std::endl;
-				// set the action state to succeeded
-				as_.setSucceeded(result_);
-			}
+			// 	std::cout << "Succeeded for: " << action_name_.c_str() << std::endl;
+			// 	// set the action state to succeeded
+			// 	as_.setSucceeded(result_);
+			// }
 		}
 };
 

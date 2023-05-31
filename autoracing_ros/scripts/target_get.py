@@ -201,7 +201,7 @@ if __name__ == '__main__':
 	action_client = scotsActionClient()
 	mapdata = mapData(action_client)
 
-	target_window = 20
+	target_window = 22
 	# safety_net = 4                    # The distance to be taken from the inflated frontier edge, this too must be even
 
 	_w, _h, resolution = mapdata.get_map_dimensions()

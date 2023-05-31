@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 	File Name: target_estimation.py
+	Description: Divide the map into 4 portions and find the targets automatically based on the 
+				 position on which quadrant and orientation.
 	Name: Allen Emmanuel Binny
 """
 # ros includes
@@ -11,11 +13,11 @@ from autoracing_msgs.msg import AutoRacingGoal
 from autoracing_msgs.msg import Target
 from nav_msgs.msg import OccupancyGrid
 from std_srvs.srv import Empty, EmptyResponse
+from geometry_msgs.msg import Pose2D
 
 # other
 import numpy as np
 from typing import final
-
 
 class targetFinder:
 	"""docstring for targetFinder"""
@@ -31,6 +33,30 @@ class targetFinder:
 		self.robot_max_length = robot_dimensions[0]		# Manimum length of the robot in meters
 		self.robot_max_width = robot_dimensions[1]		# Miximum width of the robot in meters
 		self.target_window = target_window				# size of the target window in pixel (to convert meters => target_window * resolution), note that it is a square and must always be an odd number
+		self.odom_msg = Pose2D
+
+	def odom_callback(self, data):
+		self.odom_msg.x = data.x
+		self.odom_msg.y = data.y
+		self.odom_msg.theta = data.theta
+	
+	# def find_quadrant(self, maps,width,height):
+	# 	#For Quadrant 1
+	# 	if self.odom_msg.x < (width) and self.odom_msg.x < (height/2):
+	# 		pass
+
+	# 	#For Quadrant 2
+	# 	elif self.odom_msg.x < (width2) and self.odom_msg.x < (height/2):
+	# 		pass
+		
+	# 	#For Quadrant 3
+	# 	elif self.odom_msg.x < (width/2) and self.odom_msg.x < (height/2):
+	# 		pass
+
+	# 	#For Quadrant 4
+	# 	else:
+	# 		pass
+		
 
 	def get_targets(self, maps, width, height):
 		"""
@@ -70,7 +96,6 @@ class targetFinder:
 		Returns
 			The function returns the neighbors and the x and y coordinates of the starting and ending element of the neighbors array with respect to the submap coordinate 
 		"""
-
 		radius = int(radius // 2)
 		row_number = int(row_number)
 		column_number = int(column_number)
@@ -81,16 +106,22 @@ class targetFinder:
 		else:
 			return [[]], row_number - radius, column_number - radius, row_number + radius, column_number + radius
 
-	# TODO : Need to modify it much more efficiently
 	def select_targets(self,all_targets):
 		""" 
 			We are choosing 5 largets here
 		"""
-		splitValue = len(all_targets)//5
-		safe_targets = []
-		for i in range(5,0,-1):
-			safe_targets.append(all_targets[splitValue*i - 1])
-		return safe_targets
+		# splitValue = len(all_targets)//5
+		# safe_targets = []
+		# for i in range(5,0,-1):
+		# 	safe_targets.append(all_targets[splitValue*i - 1])
+		# return safe_targets
+		targets = []
+		targets.append([[9.5, 4], [10.5, 5]])
+		targets.append([[14.5, 9], [15.5, 10]])
+		targets.append([[12, 12], [13, 13]])
+		targets.append([[6, 6], [7, 7]])
+		return targets
+
 
 class scotsActionClient:
 	"""docstring for scotsActionClient"""
@@ -128,9 +159,9 @@ class scotsActionClient:
 		self.total_systhessis_time += result.synthesis_time
 		self.total_completion_time += result.completion_time
 		
-		rospy.loginfo("Target id, {}".format(result.target_id))
-		rospy.loginfo("Synthesis Time, {}".format(result.synthesis_time))
-		rospy.loginfo("Completion Time,  {}".format(result.completion_time))
+		rospy.loginfo("Target id: {}".format(result.target_id))
+		rospy.loginfo("Synthesis Time: {}".format(result.synthesis_time))
+		rospy.loginfo("Completion Time:  {}".format(result.completion_time))
 
 	def feedback_callback(self, feedback):
 		rospy.loginfo("Current Pose: ({}, {}, {})".format(round(feedback.curr_pose.x, 2), round(feedback.curr_pose.y, 2), round(feedback.curr_pose.theta, 2)))
@@ -189,23 +220,20 @@ class mapData:
 	def get_map_dimensions(self):
 		return self.width, self.height, self.resolution
 
-def get_safe_targets(target_finder, maps, width, height):
-	all_targets = target_finder.get_targets(maps, width, height)
-	selected_targets = target_finder.select_targets(all_targets)
-	return selected_targets
-
 if __name__ == '__main__':
-	rospy.init_node("target_get")
+	rospy.init_node("target_estimation")
 
 	action_client = scotsActionClient()
 	mapdata = mapData(action_client)
 
+	# TODO : Tuning Parameter
 	target_window = 20
-	# safety_net = 4                    # The distance to be taken from the inflated frontier edge, this too must be even
 
 	_w, _h, resolution = mapdata.get_map_dimensions()
 	
 	target_finder = targetFinder(resolution=resolution, target_window=target_window, robot_dimensions=[0.4, 0.3])
+
+	rospy.Subscriber("robot_pose", Pose2D, target_finder.odom_callback)
 
 	rate = rospy.Rate(1)
 	print("Target Finder activated")
@@ -215,13 +243,10 @@ if __name__ == '__main__':
 			maps = mapdata.get_map()
 			width, height, resolution = mapdata.get_map_dimensions()
 
-			if(target_window < 0):
-				rospy.loginfo("No targets found. Window too low.")
-				break
-
 			targets = []
 			start = rospy.Time.now()
-			safe_targets = get_safe_targets(target_finder, maps, width, height)
+			# safe_targets = target_finder.get_targets(maps, width, height)
+			safe_targets = target_finder.select_targets(targets)
 			end = rospy.Time.now()
 
 			print("Total Time. {}".format(end - start))
@@ -236,9 +261,9 @@ if __name__ == '__main__':
 					tr.window = round((target_window - 1) * resolution, 2)
 					
 					for j in range(len(safe_targets[i])):
-						tr.points.append(round(safe_targets[i][j][0] * resolution, 2))
+						tr.points.append(safe_targets[i][j][0])
 					for j in range(len(safe_targets[i])):
-						tr.points.append(round(safe_targets[i][j][1] * resolution, 2))
+						tr.points.append(safe_targets[i][j][1])
 					
 					targets.append(tr)
 				
@@ -248,9 +273,8 @@ if __name__ == '__main__':
 					
 					action_client._ac.wait_for_result()
 			else:
-				print("No targets.. reducing target window.")
-				target_window -= 2
-			
+				print("No targets found.. increasing target window.")
+				target_window += 2
 
 			rate.sleep()
 	except KeyboardInterrupt:
