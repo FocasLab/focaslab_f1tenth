@@ -25,7 +25,7 @@ class targetFinder:
 		# assert isinstance(target_window, (int)), "Target window must be integer, Recieved type %r" % type(target_window).__name__
 
 		assert round(robot_dimensions[0] * robot_dimensions[1], 2) <= round((resolution * target_window) ** 2, 2), "Robot size(area) must not be bigger than target window(area), given robot size is %r m*m, while target window is %r m*m" %(robot_dimensions[0] * robot_dimensions[1], (resolution * target_window) ** 2)
-		assert target_window >= 4, "Target window must be greater than or equal to 9 (0.4*0.4 m*m), Recieved %r" % target_window
+		# assert target_window >= 4, "Target window must be greater than or equal to 9 (0.4*0.4 m*m), Recieved %r" % target_window
 		# assert target_window % 2 != 0, "Target window must be an odd number, Recieved %r" % target_window
 
 		self.resolution = resolution					# Size of each grid in meters
@@ -46,17 +46,15 @@ class targetFinder:
 			It returns the start and end points of all the regions that can be chosen as targets
 		"""
 		maps = maps[0]
-		potential_targets = []
-
-		frontier_window = self.target_window		 
+		potential_targets = []	 
 
 		for i in range(width):
 			for j in range(height):
 				# Made a change for the occupancy grid
 				if maps[i][j] == 0:
-					[neighbor_map, x_s, y_s, x_e, y_e] = self.neighbors(frontier_window, i, j, maps, width, height)
-					if not any(100 in n for n in neighbor_map):  # Check if there are any obstacles nearby
-						potential_targets.append([[x_e, y_e], [x_s, y_s]])
+					[neighbor_map, x_s, y_s, x_e, y_e] = self.neighbors(self.target_window, i, j, maps, width, height)
+					if not any(1 in n for n in neighbor_map):  # Check if there are any obstacles nearby
+						potential_targets.append([[x_s, y_s], [x_e, y_e]])
 
 		return potential_targets
 	
@@ -91,7 +89,7 @@ class targetFinder:
 		"""
 		splitValue = len(all_targets)//5
 		safe_targets = []
-		for i in range(1,6):
+		for i in range(5,0,-1):
 			safe_targets.append(all_targets[splitValue*i - 1])
 		return safe_targets
 
@@ -203,8 +201,8 @@ if __name__ == '__main__':
 	action_client = scotsActionClient()
 	mapdata = mapData(action_client)
 
-	target_window = 8
-	safety_net = 4                    # The distance to be taken from the inflated frontier edge, this too must be even
+	target_window = 20
+	# safety_net = 4                    # The distance to be taken from the inflated frontier edge, this too must be even
 
 	_w, _h, resolution = mapdata.get_map_dimensions()
 	
@@ -217,8 +215,6 @@ if __name__ == '__main__':
 		while not rospy.is_shutdown():
 			maps = mapdata.get_map()
 			width, height, resolution = mapdata.get_map_dimensions()
-
-			print("STUCK IN LOOP HERE")
 
 			if(target_window < 0):
 				rospy.loginfo("No targets found. Window too low.")
@@ -245,11 +241,8 @@ if __name__ == '__main__':
 					for j in range(len(safe_targets[i])):
 						tr.points.append(round(safe_targets[i][j][1] * resolution, 2))
 					
-					print("Target points :%s \n" % targets)
 					targets.append(tr)
-
-				print("CHECK FOR CONTROL ", mapdata.if_send_new_goal)
-
+				
 				if any(targets) and mapdata.if_send_new_goal:
 					print("Goal targets, %r" % targets)
 					mapdata.send_new_goal(targets)
