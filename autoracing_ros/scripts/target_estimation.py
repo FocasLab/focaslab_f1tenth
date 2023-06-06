@@ -107,13 +107,13 @@ class targetFinder:
 
 	def select_targets(self,all_targets):
 		targets = []
-		# targets.append([[9.5, 4], [10.5, 5]])
-		# targets.append([[14.5, 9], [15.5, 10]])
-		# targets.append([[12, 12], [13, 13]])
-		# targets.append([[6, 6], [7, 7]])
-
+		targets.append([[11.5, 5.5], [12.5, 6.5]])
+		targets.append([[15, 13], [16, 14]])
+		targets.append([[10, 10.5], [11, 11.5]])
+		targets.append([[4, 3.5], [5, 4.5]])
+		targets.append([[7, 2], [8, 3]])
 		# targets.append([[11, 10.5], [12, 11.5]]) #For mtl map
-		targets.append([[4, 2], [5, 3]])
+		# targets.append([[4, 2], [5, 3]])
 		return targets 
 
 
