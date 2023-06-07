@@ -205,8 +205,8 @@ class scotsActionServer
 
 			points.pose.orientation.w = 1;
 
-			points.scale.x = 0.48;
-			points.scale.y = 0.48;
+			points.scale.x = 0.6;
+			points.scale.y = 0.6;
 
 			points.color.r = 1.0f;
 			points.color.g = 1.0f;
@@ -276,14 +276,19 @@ class scotsActionServer
 
 			geometry_msgs::Point pt;
 				
-			pt.x = tr.points[0] + diff / 2.0;
-			pt.y = tr.points[2] + diff / 2.0;
+			pt.x = (tr.points[1] + tr.points[0] ) / 2.0;
+			pt.y = (tr.points[3] + tr.points[2] ) / 2.0;
 
 			target.points.push_back(pt);
 			markers_pub.publish(target);
 
 		}
 
+		/**
+		 * Use: Finds the winning domain for a given target
+		 * Inputs: tf(TransitionFunction), tr(Target)
+		 * Output: win_domin(WinningDomain)
+		*/
 		scots::WinningDomain getDomain(const scots::UniformGrid &ss, const scots::TransitionFunction &tf, const autoracing_msgs::Target &tr) {
 			
 			// defining target set
@@ -307,6 +312,11 @@ class scotsActionServer
 			return win_domain;
 		}
 
+		/**
+		 * Use: Publishes an AckermannDriveStamped Message into drive topic of F1Tenth Car
+		 * Inputs: speed(double), steering_angle(double)
+		 * Output: Void 
+		*/
 		void publishDrive(double speed,double steering_angle){
 			ackermann_msgs::AckermannDriveStamped drive_msg;
 			drive_msg.drive.speed = speed;
@@ -325,7 +335,17 @@ class scotsActionServer
 			return flag;
 		}
 
+		/**
+		 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
+		 * 		and publishes the inputs to the vehicle
+		 * Inputs: controller(StaticController), tr(Target)
+		 * Output: void
+		*/
 		void reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
+			
+			/**
+			 * This is the ODE using Dynamic Model for an ackermann car
+			*/
 			// auto vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -338,7 +358,7 @@ class scotsActionServer
 			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			// };
 			
-			// Kinematic Bicycle Model
+			// Kinematic Bicycle Model - ODE for F1Tenth Car
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -362,6 +382,7 @@ class scotsActionServer
 				  return true;
 				return false;
 			};
+
 			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
 			// path visualization object
@@ -423,8 +444,10 @@ class scotsActionServer
 
 					path_pub.publish(path);
 
-					if (tr.points[0] <= curr_pose.x && curr_pose.x <= tr.points[1] && tr.points[2] <= curr_pose.y && curr_pose.y <= tr.points[3]){
-						publishDrive(0.00001,0.0);
+					int infl_radius = 1;
+
+					if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius ){
+						// publishDrive(0.00001,0.0);
 						return;
 					}
 				  
@@ -432,9 +455,15 @@ class scotsActionServer
 			}
 		}
 
+		/**
+		 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
+		 * 		and publishes the inputs to the vehicle
+		 * Inputs: controller(StaticController), tr(Target)
+		 * Output: void
+		*/
 		void simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
 			//defining dynamics of robot
-			ROS_INFO_STREAM("Publishing the trajectory..");
+			ROS_INFO_STREAM("Publishing the trajectory...");
 
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
@@ -572,20 +601,20 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/45, (std::ceil(ub * 100.0) / 100.0)/45, 7.0/37}};
+			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/50, (std::ceil(ub * 100.0) / 100.0)/50, 7.0/50}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
 			ss.print_info();
 			
 			/**
-			 * @todo Bring Parameters here
+			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 6, max_steering_angle = 0.3;
+			double max_speed = 6, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{max_speed/35, 2*max_steering_angle/35}};
+			input_type i_eta={{max_speed/45, 2*max_steering_angle/45}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
@@ -645,37 +674,57 @@ class scotsActionServer
 
 			// Parsing targets
 			abs_type total_domain = ss.size();
-			
+
 			int num_targets = goal->targets.size();
 			std::vector<scots::WinningDomain> domains;
-			std::vector<int> targets_no;			
+			std::vector<int> targets_no;				
 			
+			/**
+			 * Finds the winning domain and stores that in a file
+			*/
 			for(int i = 0; i < num_targets; i++) {
 				visualizeTargets(goal->targets[i]);
 				scots::WinningDomain win_domain = getDomain(ss, tf, goal->targets[i]);
 
 				std::cout<<"Total domain and Winning domain: "<<total_domain<<","<<win_domain.get_size()<<std::endl;
 				if(0.02 * total_domain < win_domain.get_size()) {
+					// std::cout << "Writing the winning domain to a file." << std::endl;
+					// std::string s1 = "WinDomain";
+					// std::string s2 = s1 + std::to_string(i);
+					// if(write_to_file(win_domain, s2))
+					// 	std::cout << "The controller for Target: "<<i<<std::endl;
 					domains.push_back(win_domain);
 					targets_no.push_back(i);
 				}
-				else {
-					ROS_INFO_STREAM("Winning domain is less than 2% of total domain, going for the next target.\n");
-					publishDrive(0.0001,0);
-				}
+				else
+					ROS_INFO_STREAM("Winning domain is less than 2% of total domain, going for the next target.\n");	
 			}
 
+			/**
+			 * Finds the controller from the winning domain read from the file and stores it in a file
+			*/
 			ros::Duration synthesis_time = ros::Time::now() - s_begin;
 			scots::StaticController controller;
-			for(int i=0;i<domains.size();i++) {
+			for(int i = 0; i < targets_no.size(); i++) {
+				// scots::WinningDomain win_domain;
+				// std::string s3 = "WinDomain";
+				// std::string s4 = s3 + std::to_string(targets_no[i]);
+				// if(read_from_file(win_domain,s4))
+				// 	std::cout<<"File Found.\n";
+				// controller = scots::StaticController(ss, is, std::move(win_domain));
 				controller = scots::StaticController(ss, is, std::move(domains[i]));
-				std::cout << "Writing to the file." << std::endl;
+				std::cout << "Writing the controller to a file." << std::endl;
 				std::string s1 = "AutoRacing";
 				std::string s2 = s1 + std::to_string(targets_no[i]);
 				if(write_to_file(controller, s2))
 					std::cout << "The controller for Target: "<<targets_no[i]<<std::endl;
 			}
-			for(int i=0;i<domains.size();i++){	
+
+			/**
+			 * Simulates the path and make the bot move according to the controller read from the file
+			*/
+			int i = 0;
+			while(1){	
 				visualizeTargets(goal->targets[targets_no[i]]);
 				std::cout << "\n\nRobot started, Reaching to the target." << std::endl;
 				std::string s1 = "AutoRacing";
@@ -684,9 +733,8 @@ class scotsActionServer
 					std::cout<<"File Found.\n";
 				simulatePath(controller, goal->targets[targets_no[i]]);
 				reachTarget(controller, goal->targets[targets_no[i]]);
+				i = (i>=targets_no.size())?0:i++;
 			}
-			ROS_INFO_STREAM("No reachable targets, Exploration is Done..");
-
 			ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
 		}
 };

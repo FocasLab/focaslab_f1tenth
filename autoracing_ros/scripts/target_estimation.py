@@ -107,14 +107,36 @@ class targetFinder:
 
 	def select_targets(self,all_targets):
 		targets = []
-		targets.append([[11.5, 5.5], [12.5, 6.5]])
-		targets.append([[15, 13], [16, 14]])
-		targets.append([[10, 10.5], [11, 11.5]])
-		targets.append([[4, 3.5], [5, 4.5]])
-		targets.append([[7, 2], [8, 3]])
+		# THIS IS FOR COLUMBIA.YAML
+		# targets.append([[11.5, 5.5], [12.5, 6.5]])
+		# targets.append([[15, 13], [16, 14]])
+		# targets.append([[10, 10.5], [11, 11.5]])
+		# targets.append([[4, 3.5], [5, 4.5]])
+		# targets.append([[7, 2], [8, 3]])
+
+		# This is for BERLIN.YAML
+
+		# targets.append([[21.5, 19], [22.5, 20]])
+		# targets.append([[17, 11], [18, 12]])
+		# targets.append([[17, 2], [18, 3]])
+		# targets.append([[13, 8], [14, 9]])
+		# targets.append([[13, 13], [14, 14]])
+		# targets.append([[10, 19], [11, 20]])
+		# targets.append([[10, 21.5], [11, 22.5]])
+		# targets.append([[5.5, 21.5], [6.5, 22.5]])
+		# targets.append([[6, 21], [7, 22]])
+
+		targets.append([[19, 19], [24, 20]])
+		targets.append([[16, 6], [19, 7]])
+		targets.append([[12, 1.5], [20, 3.5]])
+		targets.append([[13, 6], [15, 7]])
+		targets.append([[9.5, 13], [13, 14]])
+		targets.append([[10, 21], [13, 22]])
+		targets.append([[13, 25], [14, 28]])
+
 		# targets.append([[11, 10.5], [12, 11.5]]) #For mtl map
-		# targets.append([[4, 2], [5, 3]])
-		return targets 
+		# targets.append([[5.5, 2], [6.5, 3]])
+		return targets
 
 
 class scotsActionClient:
