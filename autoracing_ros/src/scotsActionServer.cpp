@@ -264,7 +264,7 @@ class scotsActionServer
 
 			target.pose.orientation.w = 1;
 
-			target.scale.x = target.scale.y = 1 * tr.window;
+			target.scale.x = target.scale.y = tr.window;
 
 			target.color.r = 1.0f;
 
@@ -371,17 +371,10 @@ class scotsActionServer
 			    xx[2] = u[0] * std::sin(alpha)/lr;
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau/10, 10);
 			};
 
-			// defining target set
-			auto target = [&tr](const state_type& x) {
-				// function returns 1 if cell associated with x is in target set 
-				std::cout << "Target Points: " << tr.points[0] << tr.points[2] << "," <<tr.points[1] << tr.points[3] << std::endl;
-				if (tr.points[0] <= x[0] && x[0] <= tr.points[1] && tr.points[2] <= x[1] && x[1] <= tr.points[3])
-				  return true;
-				return false;
-			};
+			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);	
 
 			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
@@ -418,6 +411,21 @@ class scotsActionServer
 
 				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 
+				int i=0;
+				// while(1){
+				// 	state_type robot_pose = {curr_pose.x, curr_pose.y, curr_pose.theta};
+				// 	for(int j=0;j<10;j++){
+				// 		vehicle_post(robot_pose,control_inputs[i]);
+				// 		std::vector<int> cord{int((robot_pose[0] / resolution) + 0.2), int((robot_pose[1] / resolution) + 0.2)};
+				// 		if(maps[cord[1]][cord[0]] != 0){
+				// 			i++;
+				// 			continue;
+				// 			std::cout<<"Changing the controller as it may crash"<<std::endl;
+				// 		}
+				// 	}
+				// 	break;
+				// }
+
 				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
 
@@ -426,7 +434,7 @@ class scotsActionServer
 				ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
 				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
-				publishDrive(control_inputs[0][0],control_inputs[0][1]);
+				publishDrive(control_inputs[i][0],control_inputs[i][1]);
 				while(ros::Time::now() < endTime )
 				{
 					publishDrive(control_inputs[0][0],control_inputs[0][1]);
@@ -496,7 +504,8 @@ class scotsActionServer
 			// defining target set
 			auto target = [&tr](const state_type& x) {
 				// function returns 1 if cell associated with x is in target set 
-				if (tr.points[0] <= x[0] && x[0] <= tr.points[1] && tr.points[2] <= x[1] && x[1] <= tr.points[3])
+				int infl_radius = 2;
+				if (tr.points[0] - infl_radius <= x[0] && x[0] <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= x[1] && x[1] <= tr.points[3] + infl_radius)
 				  return true;
 				return false;
 			};
@@ -601,7 +610,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/50, (std::ceil(ub * 100.0) / 100.0)/50, 7.0/50}};
+			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/60, (std::ceil(ub * 100.0) / 100.0)/60, 7.0/60}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -611,10 +620,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 6, max_steering_angle = 0.4;
+			double max_speed = 1.5, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{max_speed/45, 2*max_steering_angle/45}};
+			input_type i_eta={{max_speed/60, 2*max_steering_angle/60}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
@@ -655,6 +664,14 @@ class scotsActionServer
 				return false;
 			};
 
+			int num_targets = goal->targets.size();
+
+			for(int i = 0; i < num_targets; i++) {
+				visualizeTargets(goal->targets[i]);
+				ros::Duration(1).sleep();
+
+			}
+
 			std::cout << "\nComputing the transition function." << std::endl;
   
 			/* transition function of symbolic model */
@@ -675,7 +692,7 @@ class scotsActionServer
 			// Parsing targets
 			abs_type total_domain = ss.size();
 
-			int num_targets = goal->targets.size();
+			
 			std::vector<scots::WinningDomain> domains;
 			std::vector<int> targets_no;				
 			
@@ -733,7 +750,9 @@ class scotsActionServer
 					std::cout<<"File Found.\n";
 				simulatePath(controller, goal->targets[targets_no[i]]);
 				reachTarget(controller, goal->targets[targets_no[i]]);
-				i = (i>=targets_no.size())?0:i++;
+				i++;
+				if(i>=targets_no.size())
+					i=0;
 			}
 			ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
 		}
