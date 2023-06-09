@@ -12,7 +12,7 @@
 
 // ros robot includes
 #include <geometry_msgs/Pose2D.h>
-#include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <ackermann_msgs/AckermannDriveStamped.h>
 #include <geometry_msgs/Point.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -64,7 +64,7 @@ class scotsActionServer
 		geometry_msgs::Pose2D curr_pose;
 
 		// publisher and subscriber handlers
-		std::string pose_topic_name_ = "/robot_pose";
+		std::string pose_topic_name_ = "/odom";
 		ros::Subscriber robot_pose;
 
 		std::string drive_topic_name_ = "/drive";
@@ -77,10 +77,6 @@ class scotsActionServer
 		// for services
 		std_srvs::Empty::Request req;
 		std_srvs::Empty::Response resp;
-
-		// origin update client
-		std::string origin_update_service_name = "/update_origin";
-		ros::ServiceClient origin_update_client;
 
 		// 
 		std::string send_new_goal_service_name = "/new_goal";
@@ -101,7 +97,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.5;
+		static constexpr double tau = 1.5;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -130,15 +126,12 @@ class scotsActionServer
 			std::cout << "Scots Action Server is started, now you can send the goals." << std::endl;
 			
 			// services
-			origin_update_client = nh_.serviceClient<std_srvs::Empty>(origin_update_service_name);
 			send_new_goal_client = nh_.serviceClient<std_srvs::Empty>(send_new_goal_service_name);
 
 			std::cout << "Waiting for services.." << std::endl;
-			ros::service::waitForService(origin_update_service_name, ros::Duration(10));
 			ros::service::waitForService(send_new_goal_service_name, ros::Duration(10));
 			std::cout << "Done." << std::endl;
 
-			bool origin_update_success = origin_update_client.call(req, resp);
 			bool send_new_goal_success = send_new_goal_client.call(req, resp);
 		}
 
@@ -146,10 +139,10 @@ class scotsActionServer
 		{
 		}
 
-		void robotPoseCallback(const geometry_msgs::Pose2D &msg) {
-			curr_pose.x = msg.x;
-			curr_pose.y = msg.y;
-			curr_pose.theta = msg.theta;
+		void robotPoseCallback(const nav_msgs::Odometry &msg) {
+			curr_pose.x = msg.pose.pose.position.x;
+			curr_pose.y = msg.pose.pose.position.y;
+			curr_pose.theta = createYawFromQuaternion(msg);
 		}
 
 		void mapCallback(const nav_msgs::OccupancyGrid &msg) {
@@ -162,6 +155,18 @@ class scotsActionServer
 			for(int i = 0; i < width * height; i++) {
 				map_vector.push_back(msg.data[i]);
 			}
+		}
+
+		double createYawFromQuaternion(const nav_msgs::Odometry &msg) {
+			tf2::Quaternion q(
+				msg.pose.pose.orientation.x,
+				msg.pose.pose.orientation.y,
+				msg.pose.pose.orientation.z,
+				msg.pose.pose.orientation.w);
+			tf2::Matrix3x3 m(q);
+			double roll, pitch, yaw;
+			m.getRPY(roll, pitch, yaw);
+			return yaw;
 		}
 
 		geometry_msgs::Quaternion createQuaternionMsgFromYaw(double yaw) {
@@ -195,7 +200,7 @@ class scotsActionServer
 			// visaulization parameters
 			visualization_msgs::Marker points;
 
-			points.header.frame_id = "origin";
+			points.header.frame_id = "map";
 			points.header.stamp = ros::Time::now();
 			
 			points.ns = "obstacles";
@@ -253,7 +258,7 @@ class scotsActionServer
 		void visualizeTargets(const autoracing_msgs::Target &tr) {
 			visualization_msgs::Marker target;
 
-			target.header.frame_id = "origin";
+			target.header.frame_id = "map";
 			target.header.stamp = ros::Time::now();
 
 			target.ns = "target_window";
@@ -381,12 +386,12 @@ class scotsActionServer
 			// path visualization object
 			nav_msgs::Path path;
 			path.header.stamp = ros::Time::now();
-			path.header.frame_id = "origin";
+			path.header.frame_id = "map";
 
 			geometry_msgs::PoseStamped path_poses;
 
 			path_poses.header.stamp = ros::Time::now();
-			path_poses.header.frame_id = "origin";
+			path_poses.header.frame_id = "map";
 
 			path_poses.pose.position.x = robot_state[0];
 			path_poses.pose.position.y = robot_state[1];
@@ -524,7 +529,7 @@ class scotsActionServer
 
 			trajectory_poses.pose.position.x = robot_state[0];
 			trajectory_poses.pose.position.y = robot_state[1];
-			trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
+			trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(curr_pose.theta);
 
 			trajectory.poses.push_back(trajectory_poses);
 
@@ -549,7 +554,7 @@ class scotsActionServer
 
 				trajectory_poses.pose.position.x = robot_state[0];
 				trajectory_poses.pose.position.y = robot_state[1];
-				trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
+				trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(curr_pose.theta);
 
 				trajectory.poses.push_back(trajectory_poses);
 
@@ -610,7 +615,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/60, (std::ceil(ub * 100.0) / 100.0)/60, 7.0/60}};
+			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/50, (std::ceil(ub * 100.0) / 100.0)/50, 7.0/50}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -620,10 +625,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 1.5, max_steering_angle = 0.4;
+			double max_speed = 6, max_steering_angle = 0.42;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{max_speed/60, 2*max_steering_angle/60}};
+			input_type i_eta={{max_speed/40, 2*max_steering_angle/40}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	

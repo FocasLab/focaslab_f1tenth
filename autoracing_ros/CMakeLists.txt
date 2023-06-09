@@ -72,10 +72,8 @@ include
 )
 
 # Link the nodes
-add_executable(origin_pose_publisher src/origin_pose_publisher.cpp)
 add_executable(scots_action_server src/scotsActionServer.cpp)
 add_executable(scots_action_client src/scotsActionClient.cpp)
-add_executable(robot_pose_publisher src/robot_pose_publisher.cpp)
 
 target_link_libraries(
   scots_action_server
@@ -87,21 +85,9 @@ target_link_libraries(
   ${catkin_LIBRARIES}
 )
 
-target_link_libraries(
-  robot_pose_publisher
-  ${catkin_LIBRARIES}
-)
-
-target_link_libraries(
-  origin_pose_publisher
-  ${catkin_LIBRARIES}
-)
-
 # add_dependencies(
 #   scots_action_server
 #   scots_action_client
-#   origin_pose_publisher
-#   robot_pose_publisher
 #   # The one below is the name of your package!!
 #   ${autoracing_ros_EXPORTED_TARGETS}
 # )
