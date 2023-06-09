@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.5;
+		static constexpr double tau = 0.1;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -610,7 +610,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/60, (std::ceil(ub * 100.0) / 100.0)/60, 7.0/60}};
+			state_type s_eta={{0.25, 0.25, 0.15}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -620,10 +620,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 1.5, max_steering_angle = 0.4;
+			double max_speed = 6, max_steering_angle = 0.42;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{max_speed/60, 2*max_steering_angle/60}};
+			input_type i_eta={{0.15, 0.01}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
@@ -645,7 +645,7 @@ class scotsActionServer
 				// coordinates to search in map matrix
 				// 0.2 is added for floating point numbers.
 				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-				int infl_rad = 1;
+				int infl_rad = 0.5/resolution;
 				for(int i = -1; i < grid_ratio[1] + 1; i++) {
 					for(int j = -1; j < grid_ratio[0] + 1; j++) {
 						if(cord[1] + i >= 0 && cord[1] + i< height && cord[0] + j >= 0 && cord[0] + j < width) {
@@ -669,7 +669,6 @@ class scotsActionServer
 			for(int i = 0; i < num_targets; i++) {
 				visualizeTargets(goal->targets[i]);
 				ros::Duration(1).sleep();
-
 			}
 
 			std::cout << "\nComputing the transition function." << std::endl;
