@@ -97,7 +97,9 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 1.5;
+		static constexpr double tau = 0.09;
+		// static constexpr double tau = 0.5;
+
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -210,8 +212,8 @@ class scotsActionServer
 
 			points.pose.orientation.w = 1;
 
-			points.scale.x = 0.6;
-			points.scale.y = 0.6;
+			points.scale.x = 0.3;
+			points.scale.y = 0.3;
 
 			points.color.r = 1.0f;
 			points.color.g = 1.0f;
@@ -269,7 +271,7 @@ class scotsActionServer
 
 			target.pose.orientation.w = 1;
 
-			target.scale.x = target.scale.y = tr.window;
+			target.scale.x = target.scale.y = tr.window/2;
 
 			target.color.r = 1.0f;
 
@@ -281,8 +283,8 @@ class scotsActionServer
 
 			geometry_msgs::Point pt;
 				
-			pt.x = (tr.points[1] + tr.points[0] ) / 2.0;
-			pt.y = (tr.points[3] + tr.points[2] ) / 2.0;
+			pt.x = tr.points[0] + diff/2;
+			pt.y = tr.points[2] + diff/2;
 
 			target.points.push_back(pt);
 			markers_pub.publish(target);
@@ -348,9 +350,9 @@ class scotsActionServer
 		*/
 		void reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
 			
-			/**
-			 * This is the ODE using Dynamic Model for an ackermann car
-			*/
+			// /**
+			//  * This is the ODE using Dynamic Model for an ackermann car
+			// */
 			// auto vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
@@ -415,21 +417,7 @@ class scotsActionServer
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
 				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
-
-				int i=0;
-				// while(1){
-				// 	state_type robot_pose = {curr_pose.x, curr_pose.y, curr_pose.theta};
-				// 	for(int j=0;j<10;j++){
-				// 		vehicle_post(robot_pose,control_inputs[i]);
-				// 		std::vector<int> cord{int((robot_pose[0] / resolution) + 0.2), int((robot_pose[1] / resolution) + 0.2)};
-				// 		if(maps[cord[1]][cord[0]] != 0){
-				// 			i++;
-				// 			continue;
-				// 			std::cout<<"Changing the controller as it may crash"<<std::endl;
-				// 		}
-				// 	}
-				// 	break;
-				// }
+				std::cout<<"The controller we are taking: "<<control_inputs[0][0]<<control_inputs[0][1]<<std::endl;
 
 				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
@@ -439,14 +427,12 @@ class scotsActionServer
 				ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
 				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
-				publishDrive(control_inputs[i][0],control_inputs[i][1]);
+				publishDrive(control_inputs[0][0],control_inputs[0][1]);
 				while(ros::Time::now() < endTime )
 				{
-					publishDrive(control_inputs[0][0],control_inputs[0][1]);
-
 					// Time between messages, so you don't blast out an thousands of
-					// messages in your tau secondperiod
-					ros::Duration(0.1).sleep();
+					// messages in your tau second period
+					ros::Duration(tau/20).sleep();
 
 					// pushing current pose in nav_msgs::Path for path visualization
 					path_poses.pose.position.x = curr_pose.x;
@@ -456,23 +442,22 @@ class scotsActionServer
 					path.poses.push_back(path_poses);
 
 					path_pub.publish(path);
-
-					int infl_radius = 1;
-
-					if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius ){
-						// publishDrive(0.00001,0.0);
-						return;
-					}
-				  
+				
+					// To switch the controller as soon as it reached near the target
+					// int infl_radius = 1;
+					// if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius ){
+					// 	// publishDrive(0.00001,0.0);
+					// 	return;
+					// }
 				}
 			}
 		}
 
 		/**
-		 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
-		 * 		and publishes the inputs to the vehicle
+		 * Use: Prints the expected the path that one would get from the ODE
+		 * 		It shows the path as we move through the end points from ODE
 		 * Inputs: controller(StaticController), tr(Target)
-		 * Output: void
+		 * Output: void - Outputs the track
 		*/
 		void simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
 			//defining dynamics of robot
@@ -596,16 +581,24 @@ class scotsActionServer
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
+			// /* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.01, 0.01}};
+			// 	const state_type w = {{0.05, 0.05}};
+			//   	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
+			//   	r[0] = r[0] + c * r[2] * tau + w[0];
+			//   	r[1] = r[1] + c * r[2] * tau + w[1];
+			// };
+
+			// /* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
+			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
+			// 	const state_type w = {{0.05, 0.05}};
 			//   	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
 			//   	r[0] = r[0] + c * r[2] * tau + w[0];
 			//   	r[1] = r[1] + c * r[2] * tau + w[1];
 			// };
 
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.01, 0.01}};
+				const state_type w = {{0.05, 0.05}};
 				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
 				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
 			};
@@ -615,7 +608,8 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{(std::ceil(lb * 100.0) / 100.0)/50, (std::ceil(ub * 100.0) / 100.0)/50, 7.0/50}};
+			// state_type s_eta={{0.27, 0.27, 0.15}};
+			state_type s_eta={{0.3, 0.3, 0.2}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -628,8 +622,10 @@ class scotsActionServer
 			double max_speed = 6, max_steering_angle = 0.42;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{max_speed/40, 2*max_steering_angle/40}};
-			  
+			// input_type i_eta={{0.12, 0.013}};
+			input_type i_eta={{0.15, 0.015}};
+
+
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
 			is.print_info();
@@ -650,7 +646,9 @@ class scotsActionServer
 				// coordinates to search in map matrix
 				// 0.2 is added for floating point numbers.
 				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-				int infl_rad = 1;
+				
+				// We take the inflation radius as scots considers the point to be point mass
+				int infl_rad = int(0.4 / resolution);
 				for(int i = -1; i < grid_ratio[1] + 1; i++) {
 					for(int j = -1; j < grid_ratio[0] + 1; j++) {
 						if(cord[1] + i >= 0 && cord[1] + i< height && cord[0] + j >= 0 && cord[0] + j < width) {
