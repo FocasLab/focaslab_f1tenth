@@ -119,10 +119,10 @@ if __name__ == '__main__':
 			#Here we have only for one target
 			tr.id = 0
 			tr.window = radius*2
-			# x = 1.68
-			# y = 5.59
-			x = 5.8
-			y = 1
+			x = 1.9
+			y = 8.3
+			#x = 5.8
+			#y = 1
 			tr.points = target_finder.select_targets(x,y)
 			print(tr.points)
 			end = rospy.Time.now()

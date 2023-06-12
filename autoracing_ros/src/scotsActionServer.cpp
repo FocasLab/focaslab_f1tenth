@@ -97,7 +97,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.09;
+		static constexpr double tau = 0.08;
 		// static constexpr double tau = 0.5;
 
 
@@ -505,12 +505,12 @@ class scotsActionServer
 			// path visualization objects
 			nav_msgs::Path trajectory;
 			trajectory.header.stamp = ros::Time::now();
-			trajectory.header.frame_id = "origin";
+			trajectory.header.frame_id = "map";
 
 			geometry_msgs::PoseStamped trajectory_poses;
 
 			trajectory_poses.header.stamp = ros::Time::now();
-			trajectory_poses.header.frame_id = "origin";
+			trajectory_poses.header.frame_id = "map";
 
 			trajectory_poses.pose.position.x = robot_state[0];
 			trajectory_poses.pose.position.y = robot_state[1];
