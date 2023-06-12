@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.1;
+		static constexpr double tau = 0.09;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -409,7 +409,7 @@ class scotsActionServer
 
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
+				// std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 
 				int i=0;
 				// while(1){
@@ -501,6 +501,9 @@ class scotsActionServer
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
+
+			ROS_INFO_STREAM("Not Vehicle Post");
+
 			// defining target set
 			auto target = [&tr](const state_type& x) {
 				// function returns 1 if cell associated with x is in target set 
@@ -509,6 +512,8 @@ class scotsActionServer
 				  return true;
 				return false;
 			};
+
+			ROS_INFO_STREAM("Not target");
 
 			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
@@ -528,6 +533,9 @@ class scotsActionServer
 
 			trajectory.poses.push_back(trajectory_poses);
 
+			ROS_INFO_STREAM("Inside simulated path");
+
+
 			while(ros::ok()) {
 				// getting ready feedback handler
 				// std::cout << "Simulation: Robot's Current Pose: " << robot_state[0] << ", " 
@@ -542,11 +550,12 @@ class scotsActionServer
 					trajectory_pub.publish(trajectory);
 					break;
 				}
+				ROS_INFO_STREAM("Getting inside the loop");
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
-				std::cout << control_inputs.size();
-				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
+				// std::cout << control_inputs.size();
+				// std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 				vehicle_post(robot_state, control_inputs[0]);
-
+				ROS_INFO_STREAM("Vehicle Post");
 				trajectory_poses.pose.position.x = robot_state[0];
 				trajectory_poses.pose.position.y = robot_state[1];
 				trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
@@ -600,7 +609,7 @@ class scotsActionServer
 			// };
 
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.01, 0.01}};
+				const state_type w = {{0.02, 0.02}};
 				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
 				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
 			};
@@ -610,7 +619,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.27, 0.27, 0.15}};
+			state_type s_eta={{0.25, 0.25, 0.14}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -620,10 +629,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 6, max_steering_angle = 0.42;
+			double max_speed = 6, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.12, 0.013}};
+			input_type i_eta={{0.11, 0.011}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
@@ -645,18 +654,15 @@ class scotsActionServer
 				// coordinates to search in map matrix
 				// 0.2 is added for floating point numbers.
 				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-				int infl_rad = int(0.5/resolution);
+				int infl_rad = 0.5/resolution;
 				for(int i = -1; i < grid_ratio[1] + 1; i++) {
 					for(int j = -1; j < grid_ratio[0] + 1; j++) {
-						if(cord[1] + i >= 0 && cord[1] + i< height && cord[0] + j >= 0 && cord[0] + j < width) {
-							//This is used to add an inflation radius
-							for(int k=0;k<=infl_rad;k++){
+						for(int k=0;k<=infl_rad;k++){
+						if(cord[1] + i - k >= 0 && cord[1] + i + k < height && cord[0] + j - k >= 0 && cord[0] + j + k < width) {						
 								if(maps[cord[1] + i + k][cord[0] + j + k] != 0 || maps[cord[1] + i + k][cord[0] + j - k] != 0 || maps[cord[1] + i - k][cord[0] + j + k] != 0 || maps[cord[1] + i - k][cord[0] + j - k] != 0){
 									return true;
 								}
-								//This is used to avoid boundary conditions
-								if(cord[1]+i<=infl_rad || cord[0]+j<=infl_rad || cord[1]+i+infl_rad>=grid_ratio[1] || cord[1]+i+infl_rad>=grid_ratio[1])
-									return false;
+
 							}
 						}	
 					}
