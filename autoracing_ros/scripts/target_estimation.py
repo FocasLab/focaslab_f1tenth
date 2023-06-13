@@ -139,10 +139,10 @@ class targetFinder:
 		# targets.append([[7.5,11.5],[9.5,13.5]])
 
 		# For torrino.yaml portion
-		targets.append([[3.5,6.5],[6.5,9.5]])
+		# targets.append([[3.5,6.5],[6.5,9.5]])
 
 		# For mtl.yaml portion
-		# targets.append([[6,6],[8,8]])
+		targets.append([[6,6],[8,8]])
 
 		# targets.append([[19, 19], [24, 20]])
 		# # targets.append([[16, 6], [19, 7]])

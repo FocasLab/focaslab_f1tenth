@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.09;
+		static constexpr double tau = 0.3;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -346,33 +346,33 @@ class scotsActionServer
 			/**
 			 * This is the ODE using Dynamic Model for an ackermann car
 			*/
-			// auto vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double alpha=std::atan(std::tan(u[1]) / 2.0);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			//     xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-			
-			// Kinematic Bicycle Model - ODE for F1Tenth Car
-			auto  vehicle_post = [](state_type &x, const input_type &u) {
+			auto vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
-				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
+			    double alpha=std::atan(std::tan(u[1]) / 2.0);
+			    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+			    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+			    xx[2] = u[0] * std::tan(u[1]);
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau/10, 10);
+			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
+			
+			// // Kinematic Bicycle Model - ODE for F1Tenth Car
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double lr = 0.17145;
+			// 	double lf = 0.15875;
+			// 	double dr = lr/(lr+lf);
+			// 	double alpha=std::atan(std::tan(u[1]) * dr);
+			//     xx[0] = u[0] * std::cos(alpha + x[2]);
+			//     xx[1] = u[0] * std::sin(alpha + x[2]);
+			//     xx[2] = u[0] * std::sin(alpha)/lr;
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau/10, 10);
+			// };
 
 			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);	
 
@@ -409,22 +409,7 @@ class scotsActionServer
 
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-				// std::sort(control_inputs.begin(), control_inputs.end(), comparing);
-
-				int i=0;
-				// while(1){
-				// 	state_type robot_pose = {curr_pose.x, curr_pose.y, curr_pose.theta};
-				// 	for(int j=0;j<10;j++){
-				// 		vehicle_post(robot_pose,control_inputs[i]);
-				// 		std::vector<int> cord{int((robot_pose[0] / resolution) + 0.2), int((robot_pose[1] / resolution) + 0.2)};
-				// 		if(maps[cord[1]][cord[0]] != 0){
-				// 			i++;
-				// 			continue;
-				// 			std::cout<<"Changing the controller as it may crash"<<std::endl;
-				// 		}
-				// 	}
-				// 	break;
-				// }
+				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 
 				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
@@ -434,7 +419,7 @@ class scotsActionServer
 				ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
 				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
-				publishDrive(control_inputs[i][0],control_inputs[i][1]);
+				publishDrive(control_inputs[0][0],control_inputs[0][1]);
 				while(ros::Time::now() < endTime )
 				{
 					publishDrive(control_inputs[0][0],control_inputs[0][1]);
@@ -455,7 +440,6 @@ class scotsActionServer
 					int infl_radius = 1;
 
 					if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius ){
-						// publishDrive(0.00001,0.0);
 						return;
 					}
 				  
@@ -473,47 +457,45 @@ class scotsActionServer
 			//defining dynamics of robot
 			ROS_INFO_STREAM("Publishing the trajectory...");
 
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double alpha=std::atan(std::tan(u[1]) / 2.0);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			//     xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
-			// Kinematic Bicycle Model
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
-				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
+			    double alpha=std::atan(std::tan(u[1]) / 2.0);
+			    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+			    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+			    xx[2] = u[0] * std::tan(u[1]);
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-
-			ROS_INFO_STREAM("Not Vehicle Post");
+			// // Kinematic Bicycle Model
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double lr = 0.17145;
+			// 	double lf = 0.15875;
+			// 	double dr = lr/(lr+lf);
+			// 	double alpha=std::atan(std::tan(u[1]) * dr);
+			//     xx[0] = u[0] * std::cos(alpha + x[2]);
+			//     xx[1] = u[0] * std::sin(alpha + x[2]);
+			//     xx[2] = u[0] * std::sin(alpha)/lr;
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			// };
 
 			// defining target set
 			auto target = [&tr](const state_type& x) {
 				// function returns 1 if cell associated with x is in target set 
-				int infl_radius = 2;
+				/**
+				 * @todo infl_radius is not working
+				*/
+				int infl_radius = 0;
 				if (tr.points[0] - infl_radius <= x[0] && x[0] <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= x[1] && x[1] <= tr.points[3] + infl_radius)
 				  return true;
 				return false;
 			};
-
-			ROS_INFO_STREAM("Not target");
 
 			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
@@ -533,15 +515,12 @@ class scotsActionServer
 
 			trajectory.poses.push_back(trajectory_poses);
 
-			ROS_INFO_STREAM("Inside simulated path");
-
-
 			while(ros::ok()) {
 				// getting ready feedback handler
 				// std::cout << "Simulation: Robot's Current Pose: " << robot_state[0] << ", " 
 				// 									  			  << robot_state[1] << ", " 
 				// 									  			  << robot_state[2] << std::endl;
-
+				ROS_INFO_STREAM("Getting inside the loop");
 				if(target(robot_state)) {
 					// std::cout << "Reached: " << robot_state[0] << ", " 
 					// 						 << robot_state[1] << ", " 
@@ -550,7 +529,7 @@ class scotsActionServer
 					trajectory_pub.publish(trajectory);
 					break;
 				}
-				ROS_INFO_STREAM("Getting inside the loop");
+				ROS_INFO_STREAM("Not robot state");
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 				// std::cout << control_inputs.size();
 				// std::sort(control_inputs.begin(), control_inputs.end(), comparing);
@@ -571,55 +550,55 @@ class scotsActionServer
 
 			struct rusage usage;
 
-			// /* we integrate the vehicle ode by tau sec (the result is stored in x)  */
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			// 	double alpha=std::atan(std::tan(u[1]) / 2.0);
-			// 	xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			// 	xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			// 	xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
-			// Kinematic Bicycle Model
+			/* we integrate the vehicle ode by tau sec (the result is stored in x)  */
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
-				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
+				double alpha=std::atan(std::tan(u[1]) / 2.0);
+				xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+				xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+				xx[2] = u[0] * std::tan(u[1]);
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
-			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.01, 0.01}};
-			//   	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
-			//   	r[0] = r[0] + c * r[2] * tau + w[0];
-			//   	r[1] = r[1] + c * r[2] * tau + w[1];
+			// // Kinematic Bicycle Model
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double lr = 0.17145;
+			// 	double lf = 0.15875;
+			// 	double dr = lr/(lr+lf);
+			// 	double alpha=std::atan(std::tan(u[1]) * dr);
+			//     xx[0] = u[0] * std::cos(alpha + x[2]);
+			//     xx[1] = u[0] * std::sin(alpha + x[2]);
+			//     xx[2] = u[0] * std::sin(alpha)/lr;
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			// };
 
+			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.02, 0.02}};
-				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
-				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
+				const state_type w = {{0.01, 0.01}};
+			  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
+			  	r[0] = r[0] + c * r[2] * tau + w[0];
+			  	r[1] = r[1] + c * r[2] * tau + w[1];
 			};
+
+			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
+			// 	const state_type w = {{0.02, 0.02}};
+			// 	r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
+			// 	r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
+			// };
 
 			double lb = width * resolution;
 			double ub = height * resolution;
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.25, 0.25, 0.14}};
+			state_type s_eta={{0.26, 0.24, 0.135}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -629,10 +608,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 6, max_steering_angle = 0.4;
+			double max_speed = 7, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.11, 0.011}};
+			input_type i_eta={{0.13, 0.014}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
@@ -654,7 +633,10 @@ class scotsActionServer
 				// coordinates to search in map matrix
 				// 0.2 is added for floating point numbers.
 				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-				int infl_rad = 0.5/resolution;
+				/**
+				 *  Changed the value of infl_rad
+				*/
+				int infl_rad = 0;
 				for(int i = -1; i < grid_ratio[1] + 1; i++) {
 					for(int j = -1; j < grid_ratio[0] + 1; j++) {
 						for(int k=0;k<=infl_rad;k++){
