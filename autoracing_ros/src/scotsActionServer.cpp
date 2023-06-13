@@ -357,22 +357,6 @@ class scotsActionServer
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
-			
-			// // Kinematic Bicycle Model - ODE for F1Tenth Car
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double lr = 0.17145;
-			// 	double lf = 0.15875;
-			// 	double dr = lr/(lr+lf);
-			// 	double alpha=std::atan(std::tan(u[1]) * dr);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]);
-			//     xx[2] = u[0] * std::sin(alpha)/lr;
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau/10, 10);
-			// };
 
 			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);	
 
@@ -469,22 +453,6 @@ class scotsActionServer
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			// // Kinematic Bicycle Model
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double lr = 0.17145;
-			// 	double lf = 0.15875;
-			// 	double dr = lr/(lr+lf);
-			// 	double alpha=std::atan(std::tan(u[1]) * dr);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]);
-			//     xx[2] = u[0] * std::sin(alpha)/lr;
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			// defining target set
 			auto target = [&tr](const state_type& x) {
 				// function returns 1 if cell associated with x is in target set 
@@ -563,22 +531,6 @@ class scotsActionServer
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			// // Kinematic Bicycle Model
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double lr = 0.17145;
-			// 	double lf = 0.15875;
-			// 	double dr = lr/(lr+lf);
-			// 	double alpha=std::atan(std::tan(u[1]) * dr);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]);
-			//     xx[2] = u[0] * std::sin(alpha)/lr;
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
 				const state_type w = {{0.01, 0.01}};
@@ -586,12 +538,6 @@ class scotsActionServer
 			  	r[0] = r[0] + c * r[2] * tau + w[0];
 			  	r[1] = r[1] + c * r[2] * tau + w[1];
 			};
-
-			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.02, 0.02}};
-			// 	r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
-			// 	r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
-			// };
 
 			double lb = width * resolution;
 			double ub = height * resolution;
