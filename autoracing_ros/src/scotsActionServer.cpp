@@ -322,10 +322,25 @@ class scotsActionServer
 		 * Inputs: speed(double), steering_angle(double)
 		 * Output: Void 
 		*/
-		void publishDrive(double speed,double steering_angle){
+		void publishDrive(double acc,double steering_angle_vel){
 			ackermann_msgs::AckermannDriveStamped drive_msg;
-			drive_msg.drive.speed = speed;
-			drive_msg.drive.steering_angle = steering_angle;
+			drive_msg.drive.acceleration = acc;
+			drive_msg.drive.steering_angle_velocity = steering_angle_vel;
+
+			drive_msg.header.stamp = ros::Time::now();
+			robot_drive.publish(drive_msg);
+		}
+		
+		/**
+		 * Resets the steering angle and velocity for calculation
+		*/
+		void publishDriveReset(){
+			ackermann_msgs::AckermannDriveStamped drive_msg;
+			drive_msg.drive.acceleration = 0;
+			drive_msg.drive.steering_angle_velocity = 0;
+			drive_msg.drive.speed = 0;
+			drive_msg.drive.steering_angle = 0;
+
 
 			drive_msg.header.stamp = ros::Time::now();
 			robot_drive.publish(drive_msg);
@@ -412,7 +427,10 @@ class scotsActionServer
 
 			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);	
 
-			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+			double velocity = 0;
+			double steering_angle = 0;
+
+			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta, velocity, steering_angle};
 
 			// path visualization object
 			nav_msgs::Path path;
@@ -439,28 +457,13 @@ class scotsActionServer
 					break;
 				}
 
-				robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+				robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta, velocity, steering_angle};
 
 				feedback_.curr_pose = curr_pose;
 
 				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-				// std::sort(control_inputs.begin(), control_inputs.end(), comparing);
-
-				// int i=0;
-				// while(1){
-				// 	state_type robot_pose = {curr_pose.x, curr_pose.y, curr_pose.theta};
-				// 	for(int j=0;j<10;j++){
-				// 		vehicle_post(robot_pose,control_inputs[i]);
-				// 		std::vector<int> cord{int((robot_pose[0] / resolution) + 0.2), int((robot_pose[1] / resolution) + 0.2)};
-				// 		if(maps[cord[1]][cord[0]] != 0){
-				// 			i++;
-				// 			continue;
-				// 			std::cout<<"Changing the controller as it may crash"<<std::endl;
-				// 		}
-				// 	}
-				// 	break;
-				// }
+				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 
 				// publishing the current feedback to action client
 				as_.publishFeedback(feedback_);
@@ -471,13 +474,16 @@ class scotsActionServer
 				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
 				publishDrive(control_inputs[0][0],control_inputs[0][1]);
+				velocity += control_inputs[0][0] * tau;
+				steering_angle += control_inputs[0][1] * tau;
 				while(ros::Time::now() < endTime )
 				{
 					publishDrive(control_inputs[0][0],control_inputs[0][1]);
 
+
 					// Time between messages, so you don't blast out an thousands of
 					// messages in your tau secondperiod
-					ros::Duration(0.1).sleep();
+					ros::Duration(tau/10).sleep();
 
 					// pushing current pose in nav_msgs::Path for path visualization
 					path_poses.pose.position.x = curr_pose.x;
@@ -574,8 +580,15 @@ class scotsActionServer
 				  return true;
 				return false;
 			};
+			
+			/**
+			 *  Temporary fix. need to change if we need to configure for multiple targets
+			*/
 
-			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+			double velocity = 0;
+			double steering_angle = 0 ;
+			
+			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta, velocity, steering_angle};
 
 			// path visualization objects
 			nav_msgs::Path trajectory;
@@ -731,10 +744,6 @@ class scotsActionServer
 			// };
 			// double max_rotation = max_accel/wb * std::tan(max_steering_angle) + max_speed * max_steering_vel / (wb*std::pow(std::cos(max_steering_angle), 2));
 
-			/**
-			 * @todo : Maybe wrong if velocities cannot be negative
-			*/
-
 			double lb = width * resolution;
 			double ub = height * resolution;
 			double wb = 0.3302;
@@ -814,11 +823,11 @@ class scotsActionServer
 			abs.compute_gb(tf, vehicle_post, radius_post, avoid);
 			tt.toc();
 
-			if(!getrusage(RUSAGE_SELF, &usage))
-				std::cout << "\nMemory per transition: " << usage.ru_maxrss / (double)tf.get_no_transitions() << std::endl;
-				
-			std::cout << "Number of transitions: " << tf.get_no_transitions() << std::endl;
-
+			if(!getrusage(RUSAGE_SELF, &usage)){
+				std::cout << "\nMemory per transition: " << usage.ru_maxrss / (double)tf.get_no_transitions() << std::endl;	
+				std::cout << "Memory used: " << usage.ru_maxrss << std::endl;	
+				std::cout << "Number of transitions: " << tf.get_no_transitions() << std::endl;
+			}
 			// Parsing targets
 			abs_type total_domain = ss.size();
 
