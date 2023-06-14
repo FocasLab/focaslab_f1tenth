@@ -729,7 +729,7 @@ class scotsActionServer
 			 *  This has been created specifically for the Single Track Dynamics - Radius Post
 			 */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.1, 0.1}};
+				const state_type w = {{0.1, 0.1, 0.1}};
 				double wb = 0.3302;
 				double max_speed = 7, max_steering_angle = 0.41;
 			  	r[0] = r[0] + (max_speed * r[2] + 1) * tau + w[0];
@@ -751,7 +751,9 @@ class scotsActionServer
 
 			state_type s_lb={{0, 0, -1*max_yaw, 0 , -1*max_steering_angle}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, max_yaw, max_speed , max_steering_angle}};
-			state_type s_eta={{0.48, 0.48, 0.4, 0.65, 0.05}};
+			// state_type s_eta={{0.48, 0.48, 0.4, 0.65, 0.05}};
+			state_type s_eta={{0.52, 0.52, 0.6, 0.7, 0.06}};
+
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -764,7 +766,7 @@ class scotsActionServer
 			
 			input_type i_lb={{max_dec, -1*max_steering_vel}};
 			input_type i_ub={{max_accel, max_steering_vel}};
-			input_type i_eta={{0.65, 0.25}};
+			input_type i_eta={{0.7, 0.3}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
