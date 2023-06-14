@@ -95,7 +95,7 @@ class scotsActionServer
 		ros::Publisher trajectory_pub;
 
 		// global variables
-		static const int state_dim = 5;
+		static const int state_dim = 4;
 		static const int input_dim = 2;
 		static constexpr double tau = 0.5;
 
@@ -378,20 +378,36 @@ class scotsActionServer
 			//   /* simulate (use 10 intermediate steps in the ode solver) */
 			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			// };
-			
+
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double wb = 0.3302;
-				xx[0] = x[3] * std::cos(x[2]);
-			    xx[1] = x[3] * std::sin(x[2]);
-			    xx[2] = x[3]/wb * std::tan(x[4]);
-				xx[3] = u[0];
-				xx[4] = u[1];
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(x[3]) * dr);
+			    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+			    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+			    xx[2] = u[0] * std::tan(x[3]) / (lr+lf);
+				xx[3] = u[1];
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
+			
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double wb = 0.3302;
+			// 	xx[0] = x[3] * std::cos(x[2]);
+			//     xx[1] = x[3] * std::sin(x[2]);
+			//     xx[2] = x[3]/wb * std::tan(x[4]);
+			// 	xx[3] = u[0];
+			// 	xx[4] = u[1];
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			// };
 			
 
 			// // Kinematic Bicycle Model - ODE for F1Tenth Car
@@ -509,31 +525,35 @@ class scotsActionServer
 			//defining dynamics of robot
 			ROS_INFO_STREAM("Publishing the trajectory...");
 
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double alpha=std::atan(std::tan(u[1]) / 2.0);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			//     xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double wb = 0.3302;
-				xx[0] = x[3] * std::cos(x[2]);
-			    xx[1] = x[3] * std::sin(x[2]);
-			    xx[2] = x[3]/wb * std::tan(x[4]);
-				xx[3] = u[0];
-				xx[4] = u[1];
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(x[3]) * dr);
+			    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+			    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+			    xx[2] = u[0] * std::tan(x[3]) / (lr+lf);
+				xx[3] = u[1];
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
+
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double wb = 0.3302;
+			// 	xx[0] = x[3] * std::cos(x[2]);
+			//     xx[1] = x[3] * std::sin(x[2]);
+			//     xx[2] = x[3]/wb * std::tan(x[4]);
+			// 	xx[3] = u[0];
+			// 	xx[4] = u[1];
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			// };
 
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
@@ -554,9 +574,9 @@ class scotsActionServer
 			// auto  vehicle_post = [](state_type &x, const input_type &u) {
 			//   /* the ode describing the vehicle */
 			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double lr = 0.17145;
-			// 	double lf = 0.15875;
-			// 	double dr = lr/(lr+lf);
+			    // double lr = 0.17145;
+				// double lf = 0.15875;
+				// double dr = lr/(lr+lf);
 			// 	double alpha=std::atan(std::tan(u[1]) * dr);
 			//     xx[0] = u[0] * std::cos(alpha + x[2]);
 			//     xx[1] = u[0] * std::sin(alpha + x[2]);
@@ -651,20 +671,36 @@ class scotsActionServer
 			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			// };
 
+			// auto  vehicle_post = [](state_type &x, const input_type &u) {
+			//   /* the ode describing the vehicle */
+			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+			//     double wb = 0.3302;
+			// 	xx[0] = x[3] * std::cos(x[2]);
+			//     xx[1] = x[3] * std::sin(x[2]);
+			//     xx[2] = x[3]/wb * std::tan(x[4]);
+			// 	xx[3] = u[0];
+			// 	xx[4] = u[1];
+			//   };
+			//   /* simulate (use 10 intermediate steps in the ode solver) */
+			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			// };
+
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double wb = 0.3302;
-				xx[0] = x[3] * std::cos(x[2]);
-			    xx[1] = x[3] * std::sin(x[2]);
-			    xx[2] = x[3]/wb * std::tan(x[4]);
-				xx[3] = u[0];
-				xx[4] = u[1];
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(x[3]) * dr);
+			    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+			    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+			    xx[2] = u[0] * std::tan(x[3]) / (lr+lf);
+				xx[3] = u[1];
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
-
+			
 			/**
 			 * Single Track Drift Model
 			*/
