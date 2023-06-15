@@ -410,7 +410,7 @@ class scotsActionServer
 
 					// Time between messages, so you don't blast out an thousands of
 					// messages in your tau secondperiod
-					ros::Duration(0.1).sleep();
+					ros::Duration(tau/10).sleep();
 
 					// pushing current pose in nav_msgs::Path for path visualization
 					path_poses.pose.position.x = curr_pose.x;
@@ -544,7 +544,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.26, 0.24, 0.135}};
+			state_type s_eta={{0.23, 0.24, 0.135}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -554,10 +554,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 7, max_steering_angle = 0.4;
+			double max_speed = 6, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.13, 0.014}};
+			input_type i_eta={{0.15, 0.015}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
