@@ -103,7 +103,7 @@ if __name__ == '__main__':
 	action_client = scotsActionClient()
 
 	# TODO : Tuning Parameter
-	radius = 1
+	radius = 2
 
 	target_finder = targetFinder(radius=radius, action_client=action_client, robot_dimensions=[0.4, 0.3])
 

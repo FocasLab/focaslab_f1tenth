@@ -97,7 +97,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 4;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.5;
+		static constexpr double tau = 1.5;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -689,7 +689,7 @@ class scotsActionServer
 
 			state_type s_lb={{0, 0, -1*max_yaw, -1*max_steering_angle}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, max_yaw, max_steering_angle}};
-			state_type s_eta={{0.48, 0.48, 0.4, 0.05}};
+			state_type s_eta={{0.42, 0.42, 0.26, 0.026}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -702,7 +702,7 @@ class scotsActionServer
 			
 			input_type i_lb={{0, -1*max_steering_vel}};
 			input_type i_ub={{max_speed, max_steering_vel}};
-			input_type i_eta={{0.5, 0.25}};
+			input_type i_eta={{0.37, 0.27}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
