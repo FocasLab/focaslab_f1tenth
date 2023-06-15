@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.3;
+		static constexpr double tau = 0.1;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
