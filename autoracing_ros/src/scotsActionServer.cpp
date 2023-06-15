@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.3;
+		static constexpr double tau = 0.09;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -550,55 +550,34 @@ class scotsActionServer
 
 			struct rusage usage;
 
-			/* we integrate the vehicle ode by tau sec (the result is stored in x)  */
+			// Kinematic Bicycle Model
 			auto  vehicle_post = [](state_type &x, const input_type &u) {
 			  /* the ode describing the vehicle */
 			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-				double alpha=std::atan(std::tan(u[1]) / 2.0);
-				xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-				xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-				xx[2] = u[0] * std::tan(u[1]);
+			    double lr = 0.17145;
+				double lf = 0.15875;
+				double dr = lr/(lr+lf);
+				double alpha=std::atan(std::tan(u[1]) * dr);
+			    xx[0] = u[0] * std::cos(alpha + x[2]);
+			    xx[1] = u[0] * std::sin(alpha + x[2]);
+			    xx[2] = u[0] * std::sin(alpha)/lr;
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
 			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
 			};
 
-			// // Kinematic Bicycle Model
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double lr = 0.17145;
-			// 	double lf = 0.15875;
-			// 	double dr = lr/(lr+lf);
-			// 	double alpha=std::atan(std::tan(u[1]) * dr);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]);
-			//     xx[2] = u[0] * std::sin(alpha)/lr;
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-
-			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.01, 0.01}};
-			  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
-			  	r[0] = r[0] + c * r[2] * tau + w[0];
-			  	r[1] = r[1] + c * r[2] * tau + w[1];
+				const state_type w = {{0.02, 0.02}};
+				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
+				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
 			};
-
-			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.02, 0.02}};
-			// 	r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
-			// 	r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
-			// };
 
 			double lb = width * resolution;
 			double ub = height * resolution;
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.26, 0.24, 0.135}};
+			state_type s_eta={{0.35, 0.35, 0.22}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -608,7 +587,7 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 7, max_steering_angle = 0.4;
+			double max_speed = 5, max_steering_angle = 0.3;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
 			input_type i_eta={{0.13, 0.014}};
