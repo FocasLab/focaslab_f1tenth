@@ -533,7 +533,7 @@ class scotsActionServer
 
 			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.01, 0.01}};
+				const state_type w = {{0.03, 0.03}};
 			  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
 			  	r[0] = r[0] + c * r[2] * tau + w[0];
 			  	r[1] = r[1] + c * r[2] * tau + w[1];
@@ -544,7 +544,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.23, 0.24, 0.135}};
+			state_type s_eta={{0.2, 0.2, 0.115}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -557,7 +557,7 @@ class scotsActionServer
 			double max_speed = 6, max_steering_angle = 0.4;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.15, 0.015}};
+			input_type i_eta={{0.1, 0.01}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
