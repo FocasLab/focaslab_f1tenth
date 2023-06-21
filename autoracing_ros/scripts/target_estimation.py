@@ -136,13 +136,19 @@ class targetFinder:
 		# targets.append([[12, 25.5], [14, 27.5]])
 
 		# For Berlin.yaml portion
-		# targets.append([[7.5,11.5],[9.5,13.5]])
+		targets.append([[4,12.3],[6,15.3]])
+		
+		# targets.append([[6,13.5],[9,16.5]])
+
+		# targets.append([[12.5,25],[15.5,28]])
+		# targets.append([[15.5,4.5],[18.5,7.5]])
+
 
 		# For torrino.yaml portion
 		# targets.append([[3.5,6.5],[6.5,9.5]])
 
 		# For mtl.yaml portion
-		targets.append([[5.5,11],[8.5,14]])
+		# targets.append([[5.5,11],[8.5,14]])
 
 		# targets.append([[19, 19], [24, 20]])
 		# # targets.append([[16, 6], [19, 7]])
@@ -291,7 +297,7 @@ if __name__ == '__main__':
 					
 					tr = Target()
 					tr.id = i
-					tr.window = round((target_window - 1) * resolution, 2)
+					tr.window = 3
 
 
 					for j in range(len(safe_targets[i])):

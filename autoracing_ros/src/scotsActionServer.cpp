@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.1;
+		static constexpr double tau = 0.08;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -585,7 +585,7 @@ class scotsActionServer
 			// };
 
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.01, 0.01}};
+				const state_type w = {{0.05, 0.05}};
 				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
 				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
 			};
@@ -595,7 +595,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.3, 0.3, 0.17}};
+			state_type s_eta={{0.23, 0.23, 0.14}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -605,10 +605,10 @@ class scotsActionServer
 			 * @todo Parameter Tuning
 			*/
 
-			double max_speed = 6, max_steering_angle = 0.42;
+			double max_speed = 7, max_steering_angle = 0.3;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.2, 0.015}};
+			input_type i_eta={{0.11, 0.01}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
