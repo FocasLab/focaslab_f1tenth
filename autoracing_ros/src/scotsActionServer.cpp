@@ -101,7 +101,7 @@ class scotsActionServer
 		// global variables
 		static const int state_dim = 3;
 		static const int input_dim = 2;
-		static constexpr double tau = 0.1;
+		static constexpr double tau = 0.08;
 
 		using state_type = std::array<double, state_dim>;
 		using input_type = std::array<double, input_dim>;
@@ -450,7 +450,7 @@ class scotsActionServer
 			    xx[2] = u[0] * std::tan(u[1]);
 			  };
 			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 5);
 			};
 
 			// defining target set
@@ -533,7 +533,7 @@ class scotsActionServer
 
 			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
 			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.03, 0.03}};
+				const state_type w = {{0.009, 0.009}};
 			  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
 			  	r[0] = r[0] + c * r[2] * tau + w[0];
 			  	r[1] = r[1] + c * r[2] * tau + w[1];
