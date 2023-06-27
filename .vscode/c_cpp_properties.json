@@ -13,7 +13,8 @@
                 "/home/allemmbinn/ws/src/focaslab_f1tenth/f1tenth_simulator/include/**",
                 "/home/allemmbinn/catkin_ws/src/turtlebot3_simulations/turtlebot3_fake/include/**",
                 "/home/allemmbinn/catkin_ws/src/turtlebot3_simulations/turtlebot3_gazebo/include/**",
-                "/usr/include/**"
+                "/usr/include/**",
+                "${workspaceFolder}/autoracing_ros/include"
             ],
             "name": "ROS",
             "intelliSenseMode": "gcc-x64",

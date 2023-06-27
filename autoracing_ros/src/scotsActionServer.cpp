@@ -36,6 +36,7 @@
 #include <vector>
 #include <array>
 #include <cmath>
+#include <fstream>
 
 // memory profiling
 #include <sys/time.h>
@@ -190,6 +191,67 @@ class scotsActionServer
 			}
 			return map;
 		}
+
+		bool returnEta(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps, state_type x, double grid_l){
+			// // ratio of scots grid(s_eta) to map grid (resolution)
+			// // 0.2 is added for floating point numbers
+			// std::vector<int> grid_ratio{3*int((ss.get_eta()[0] / resolution) + 0.2), 3*int((ss.get_eta()[1] / resolution) + 0.2)};
+
+			// // coordinates to search in map matrix
+			// // 0.2 is added for floating point numbers.
+			// std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
+
+			for(int i = int(x[1]/resolution); i < int((x[1] + grid_l)/resolution); i++) 
+				for(int j = int(x[0]/resolution); j < int((x[0] + grid_l)/resolution); j++) 
+					if(i < width/resolution && j < height/resolution) 
+						if(maps[i][j] != 0)
+							return true;
+			return false;
+		}
+
+
+		void formMap(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps){
+            abs_type num_cell = ss.size();
+			std::vector<abs_type> NN = ss.get_nn();
+
+			std::cout << "Number of cells: " << num_cell << std::endl;
+
+			std::fstream my_file;
+			my_file.open("/home/focaslab/Documents/mapData.txt", std::ios::out);
+			if(!my_file)
+    			std::cout<<"Error in file creation!";
+    		else
+    			std::cout<<"File Creation successfull.";
+			int count = 1;
+
+			double grid_l = 1;
+
+			std::string s1 = "ob";
+			std::string s3 = "{type=\"rectangle\"; h=\"{";
+			std::string s4 = ",";
+			std::string s5 = "} ,{";
+			std::string s6 = "} ,{-3.4,3.4}\";}";
+
+			// check for only (x, y) state space (num_grid_x * num_grid_y)
+			for(abs_type i = 0; i < NN[2]; i++) {
+				state_type x;
+				state_type x1;
+				ss.itox(i, x);
+
+				if(returnEta(ss, maps, x, grid_l) && (x[0] >= x1[0] || x[1] >= x1[1])){
+					std::string s2 = s1 + std::to_string(count) + s3 +std::to_string(x[0]) + s4 + std::to_string(x[0] + grid_l) + s5 + std::to_string(x[1]) + s4 + std::to_string(x[1] + grid_l) + s6;
+					my_file << s2 << std::endl;
+					x1=x;
+					x1[0] = x[0] + grid_l - ss.get_eta()[0]; 
+					x1[1] = x[1] + grid_l - ss.get_eta()[0]; 
+					count++;
+				}
+			}
+			std::string s7 = "count=\"";
+			std::string s8 = "\";";
+			std::string s9 = s7 + std::to_string(count-1) + s8;
+			my_file << s9 << std::endl;
+        }
 
 		void visualizeObstacles(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps) {
 			// visaulization parameters
@@ -595,7 +657,7 @@ class scotsActionServer
 			
 			state_type s_lb={{0, 0, -3.5}};
 			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.23, 0.23, 0.14}};
+			state_type s_eta={{0.3, 0.3, 0.17}};
 
 			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
 			std::cout << std::endl;
@@ -608,13 +670,15 @@ class scotsActionServer
 			double max_speed = 7, max_steering_angle = 0.3;
 			input_type i_lb={{0, -1*max_steering_angle}};
 			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.11, 0.01}};
+			input_type i_eta={{0.13, 0.013}};
 			  
 			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
 			std::cout << std::endl;	
 			is.print_info();
 			
 			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
+
+			formMap(ss,maps);
 
 			visualizeObstacles(ss, maps);
 			visualizeTargets(goal->targets[0]);
