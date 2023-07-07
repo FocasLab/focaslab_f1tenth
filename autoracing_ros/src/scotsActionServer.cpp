@@ -1,8 +1,8 @@
 /*
  * File Name: scotsActionServer.cpp
  *
- * Author: Allen Emmanuel Binny 
-*/
+ * Author: Allen Emmanuel Binny
+ */
 
 // ros includes
 #include <ros/ros.h>
@@ -26,7 +26,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-// scots includes 
+// scots includes
 #include "autoracing_core/scots.hpp"
 #include "autoracing_core/RungeKutta4.hpp"
 #include "autoracing_core/TicToc.hpp"
@@ -42,771 +42,821 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-
 class scotsActionServer
 {
-	protected:
-		ros::NodeHandle nh_;
-		
-		// NodeHandle instance must be created before this line. Otherwise strange error occurs.
-		actionlib::SimpleActionServer<autoracing_msgs::AutoRacingAction> as_;
-		std::string action_name_;
+protected:
+	ros::NodeHandle nh_;
 
-		// create messages that are used to published feedback/result
-		autoracing_msgs::AutoRacingFeedback feedback_;
-		autoracing_msgs::AutoRacingResult result_;
+	// NodeHandle instance must be created before this line. Otherwise strange error occurs.
+	actionlib::SimpleActionServer<autoracing_msgs::AutoRacingAction> as_;
+	std::string action_name_;
 
-		// state space
-		std::vector<int> map_vector;
-		double resolution;
-		int width, height;
+	// create messages that are used to published feedback/result
+	autoracing_msgs::AutoRacingFeedback feedback_;
+	autoracing_msgs::AutoRacingResult result_;
 
-		// robot state 
-		geometry_msgs::Pose2D curr_pose;
+	// state space
+	std::vector<int> map_vector;
+	double resolution;
+	int width, height;
 
-		// publisher and subscriber handlers
-		std::string pose_topic_name_ = "/robot_pose";
-		ros::Subscriber robot_pose;
+	// robot state
+	geometry_msgs::Pose2D curr_pose;
 
-		std::string drive_topic_name_ = "/drive";
-		ros::Publisher robot_drive;
+	// publisher and subscriber handlers
+	std::string pose_topic_name_ = "/robot_pose";
+	ros::Subscriber robot_pose;
 
-		// map subscriber
-		std::string map_topic_name = "/map";
-		ros::Subscriber map_sub;
+	std::string drive_topic_name_ = "/drive";
+	ros::Publisher robot_drive;
 
-		// for services
-		std_srvs::Empty::Request req;
-		std_srvs::Empty::Response resp;
+	// map subscriber
+	std::string map_topic_name = "/map";
+	ros::Subscriber map_sub;
 
-		// origin update client
-		std::string origin_update_service_name = "/update_origin";
-		ros::ServiceClient origin_update_client;
+	// for services
+	std_srvs::Empty::Request req;
+	std_srvs::Empty::Response resp;
 
-		// 
-		std::string send_new_goal_service_name = "/new_goal";
-		ros::ServiceClient send_new_goal_client;
+	// origin update client
+	std::string origin_update_service_name = "/update_origin";
+	ros::ServiceClient origin_update_client;
 
-		// obstacle visualization
-		std::string obs_topic_name = "/scots_visualization";
-		ros::Publisher markers_pub;
+	//
+	std::string send_new_goal_service_name = "/new_goal";
+	ros::ServiceClient send_new_goal_client;
 
-		// robot path visualization
-		std::string path_topic_name = "/path_visualization";
-		ros::Publisher path_pub;
+	// obstacle visualization
+	std::string obs_topic_name = "/scots_visualization";
+	ros::Publisher markers_pub;
 
-		// trajectory visualization
-		std::string trajectory_topic_name = "/trajectory_visualization";
-		ros::Publisher trajectory_pub;
+	// robot path visualization
+	std::string path_topic_name = "/path_visualization";
+	ros::Publisher path_pub;
 
-		// global variables
-		static const int state_dim = 3;
-		static const int input_dim = 2;
-		static constexpr double tau = 0.08;
+	// trajectory visualization
+	std::string trajectory_topic_name = "/trajectory_visualization";
+	ros::Publisher trajectory_pub;
 
-		using state_type = std::array<double, state_dim>;
-		using input_type = std::array<double, input_dim>;
-		using abs_type = scots::abs_type;
+	// global variables
+	static const int state_dim = 3;
+	static const int input_dim = 2;
+	static constexpr double tau = 0.08;
 
-		// for time profiling
-		TicToc tt;
-	
-	public:
-		scotsActionServer(std::string name) : 
-		// Bind the callback to the action server. False is for thread spinning
-		as_(nh_, name, boost::bind(&scotsActionServer::processGoal, this, _1), false),
-		action_name_(name) {
-			// subscribers
-			robot_pose = nh_.subscribe(pose_topic_name_, 10, &scotsActionServer::robotPoseCallback, this);
-			map_sub = nh_.subscribe(map_topic_name, 10, &scotsActionServer::mapCallback, this);
-			
-			// publishers
-			robot_drive = nh_.advertise<ackermann_msgs::AckermannDriveStamped>(drive_topic_name_, 10);
-			markers_pub = nh_.advertise<visualization_msgs::Marker>(obs_topic_name, 10);
-			path_pub = nh_.advertise<nav_msgs::Path>(path_topic_name, 10);
-			trajectory_pub = nh_.advertise<nav_msgs::Path>(trajectory_topic_name, 10);
+	using state_type = std::array<double, state_dim>;
+	using input_type = std::array<double, input_dim>;
+	using abs_type = scots::abs_type;
 
-			// actions
-			as_.start();
-			std::cout << "Scots Action Server is started, now you can send the goals." << std::endl;
-			
-			// services
-			origin_update_client = nh_.serviceClient<std_srvs::Empty>(origin_update_service_name);
-			send_new_goal_client = nh_.serviceClient<std_srvs::Empty>(send_new_goal_service_name);
+	// for time profiling
+	TicToc tt;
 
-			std::cout << "Waiting for services.." << std::endl;
-			ros::service::waitForService(origin_update_service_name, ros::Duration(10));
-			ros::service::waitForService(send_new_goal_service_name, ros::Duration(10));
-			std::cout << "Done." << std::endl;
+public:
+	scotsActionServer(std::string name) : // Bind the callback to the action server. False is for thread spinning
+										  as_(nh_, name, boost::bind(&scotsActionServer::processGoal, this, _1), false),
+										  action_name_(name)
+	{
+		// subscribers
+		robot_pose = nh_.subscribe(pose_topic_name_, 10, &scotsActionServer::robotPoseCallback, this);
+		map_sub = nh_.subscribe(map_topic_name, 10, &scotsActionServer::mapCallback, this);
 
-			bool origin_update_success = origin_update_client.call(req, resp);
-			bool send_new_goal_success = send_new_goal_client.call(req, resp);
-		}
+		// publishers
+		robot_drive = nh_.advertise<ackermann_msgs::AckermannDriveStamped>(drive_topic_name_, 10);
+		markers_pub = nh_.advertise<visualization_msgs::Marker>(obs_topic_name, 10);
+		path_pub = nh_.advertise<nav_msgs::Path>(path_topic_name, 10);
+		trajectory_pub = nh_.advertise<nav_msgs::Path>(trajectory_topic_name, 10);
 
-		~scotsActionServer(void)
+		// actions
+		as_.start();
+		std::cout << "Scots Action Server is started, now you can send the goals." << std::endl;
+
+		// services
+		origin_update_client = nh_.serviceClient<std_srvs::Empty>(origin_update_service_name);
+		send_new_goal_client = nh_.serviceClient<std_srvs::Empty>(send_new_goal_service_name);
+
+		std::cout << "Waiting for services.." << std::endl;
+		ros::service::waitForService(origin_update_service_name, ros::Duration(10));
+		ros::service::waitForService(send_new_goal_service_name, ros::Duration(10));
+		std::cout << "Done." << std::endl;
+
+		bool origin_update_success = origin_update_client.call(req, resp);
+		bool send_new_goal_success = send_new_goal_client.call(req, resp);
+	}
+
+	~scotsActionServer(void)
+	{
+	}
+
+	void robotPoseCallback(const geometry_msgs::Pose2D &msg)
+	{
+		curr_pose.x = msg.x;
+		curr_pose.y = msg.y;
+		curr_pose.theta = msg.theta;
+	}
+
+	void mapCallback(const nav_msgs::OccupancyGrid &msg)
+	{
+		map_vector.clear();
+		resolution = msg.info.resolution;
+		width = msg.info.width;
+		height = msg.info.height;
+
+		// map_vector = msg.data;
+		for (int i = 0; i < width * height; i++)
 		{
+			map_vector.push_back(msg.data[i]);
 		}
+	}
 
-		void robotPoseCallback(const geometry_msgs::Pose2D &msg) {
-			curr_pose.x = msg.x;
-			curr_pose.y = msg.y;
-			curr_pose.theta = msg.theta;
-		}
+	geometry_msgs::Quaternion createQuaternionMsgFromYaw(double yaw)
+	{
+		tf2::Quaternion quat;
+		quat.setRPY(0, 0, yaw);
 
-		void mapCallback(const nav_msgs::OccupancyGrid &msg) {
-			map_vector.clear();
-			resolution = msg.info.resolution;
-			width = msg.info.width;
-			height = msg.info.height;
+		geometry_msgs::Quaternion quat_msgs;
+		tf2::convert(quat, quat_msgs);
 
-			// map_vector = msg.data;
-			for(int i = 0; i < width * height; i++) {
-				map_vector.push_back(msg.data[i]);
+		return quat_msgs;
+	}
+
+	std::vector<std::vector<int>> getMapMatrix(const std::vector<int> &map_vector, int width, int height)
+	{
+		std::vector<std::vector<int>> map;
+
+		for (int i = 0; i < height; i++)
+		{
+			std::vector<int> map_i;
+			for (int j = 0; j < width; j++)
+			{
+				int idx = width * i + j;
+				if (map_vector[idx] > 0)
+					map_i.push_back(1);
+				else
+					map_i.push_back(0);
 			}
+			map.push_back(map_i);
 		}
+		return map;
+	}
 
-		geometry_msgs::Quaternion createQuaternionMsgFromYaw(double yaw) {
-			tf2::Quaternion quat;
-			quat.setRPY(0, 0, yaw);
-
-			geometry_msgs::Quaternion quat_msgs;
-			tf2::convert(quat, quat_msgs);
-
-			return quat_msgs;
-		}
-
-		std::vector<std::vector<int>> getMapMatrix(const std::vector<int> &map_vector, int width, int height) {
-			std::vector<std::vector<int>> map;
-
-			for(int i = 0; i < height; i++) {
-				std::vector<int> map_i;
-				for(int j = 0; j < width; j++) {
-					int idx = width * i + j;
-					if(map_vector[idx] > 0)
-						map_i.push_back(1);
-					else
-						map_i.push_back(0);
-				}
-				map.push_back(map_i);
-			}
-			return map;
-		}
-
-		bool returnEta(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps, state_type x, double grid_l){
-			// // ratio of scots grid(s_eta) to map grid (resolution)
-			// // 0.2 is added for floating point numbers
-			// std::vector<int> grid_ratio{3*int((ss.get_eta()[0] / resolution) + 0.2), 3*int((ss.get_eta()[1] / resolution) + 0.2)};
-
-			// // coordinates to search in map matrix
-			// // 0.2 is added for floating point numbers.
-			// std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-
-			for(int i = int(x[1]/resolution); i < int((x[1] + grid_l)/resolution); i++) 
-				for(int j = int(x[0]/resolution); j < int((x[0] + grid_l)/resolution); j++) 
-					if(i < width/resolution && j < height/resolution) 
-						if(maps[i][j] != 0)
-							return true;
-			return false;
-		}
-
-
-		void formMap(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps){
-            abs_type num_cell = ss.size();
-			std::vector<abs_type> NN = ss.get_nn();
-
-			std::cout << "Number of cells: " << num_cell << std::endl;
-
-			std::fstream my_file;
-			my_file.open("/home/focaslab/Documents/mapData.txt", std::ios::out);
-			if(!my_file)
-    			std::cout<<"Error in file creation!";
-    		else
-    			std::cout<<"File Creation successfull.";
-			int count = 1;
-
-			double grid_l = 1;
-
-			std::string s1 = "ob";
-			std::string s3 = "{type=\"rectangle\"; h=\"{";
-			std::string s4 = ",";
-			std::string s5 = "} ,{";
-			std::string s6 = "} ,{-3.4,3.4}\";}";
-
-			// check for only (x, y) state space (num_grid_x * num_grid_y)
-			for(abs_type i = 0; i < NN[2]; i++) {
-				state_type x;
-				state_type x1;
-				ss.itox(i, x);
-
-				if(returnEta(ss, maps, x, grid_l) && (x[0] >= x1[0] || x[1] >= x1[1])){
-					std::string s2 = s1 + std::to_string(count) + s3 +std::to_string(x[0]) + s4 + std::to_string(x[0] + grid_l) + s5 + std::to_string(x[1]) + s4 + std::to_string(x[1] + grid_l) + s6;
-					my_file << s2 << std::endl;
-					x1=x;
-					x1[0] = x[0] + grid_l - ss.get_eta()[0]; 
-					x1[1] = x[1] + grid_l - ss.get_eta()[0]; 
-					count++;
+	int returnObstacle(std::vector<std::vector<int>> &maps, int i, int j, int gridl)
+	{
+		for (int k = i; k < i + gridl; k++)
+		{
+			for (int l = j; l < j + gridl; l++)
+			{
+				if (maps[k][l])
+				{
+					return 1;
 				}
 			}
-			std::string s7 = "count=\"";
-			std::string s8 = "\";";
-			std::string s9 = s7 + std::to_string(count-1) + s8;
-			my_file << s9 << std::endl;
-        }
+		}
+		return 0;
+	}
 
-		void visualizeObstacles(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps) {
-			// visaulization parameters
-			visualization_msgs::Marker points;
+	void formMap(std::vector<std::vector<int>> &maps, int width, int height, double resolution)
+	{
+		std::fstream my_file;
+		my_file.open("/home/allemmbinn/Documents/mapData_short.txt", std::ios::out);
+		if (!my_file)
+			std::cout << "Error in file creation!";
+		else
+			std::cout << "File Creation successfull.";
 
-			points.header.frame_id = "origin";
-			points.header.stamp = ros::Time::now();
-			
-			points.ns = "obstacles";
-			points.id = 0;
-			points.type = visualization_msgs::Marker::POINTS;
-			points.action = visualization_msgs::Marker::ADD;
+		int count = 1;
 
-			points.pose.orientation.w = 1;
+		std::string s1 = "ob";
+		std::string s3 = "{type=\"rectangle\"; h=\"{";
+		std::string s4 = ",";
+		std::string s5 = "} ,{";
+		std::string s6 = "} ,{-3.4,3.4}\";}";
 
-			points.scale.x = 0.6;
-			points.scale.y = 0.6;
+		int gridl = (0.6) / resolution;
+		for (int i = 0; i < height; i += gridl)
+		{
+			int y[] = {0,0}; // Last location of y found
+			for (int j = 0; j < width; j += gridl)
+			{
+				if(returnObstacle(maps, i, j, gridl))
+					y[1] = j+gridl;
+				else{
+					if(y[0]!=y[1]){
+						std::string s2 = s1 + std::to_string(count++) + s3 + std::to_string(i * resolution) + s4 + std::to_string((i + gridl) * resolution) + s5 + std::to_string(y[0] * resolution) + s4 + std::to_string(y[1] * resolution) + s6;
+						my_file << s2 << std::endl;
+					}
+					y[0]=y[1]=j+gridl;						
+				}
+				// if(returnObstacle(maps, i, j, gridl)){
+				// 	std::string s2 = s1 + std::to_string(count++) + s3 + std::to_string(i * resolution) + s4 + std::to_string((i + gridl) * resolution) + s5 + std::to_string(j * resolution) + s4 + std::to_string((j+gridl) * resolution) + s6;
+				// 	my_file << s2 << std::endl;
+				// }
+			}
+		}
+	}
 
-			points.color.r = 1.0f;
-			points.color.g = 1.0f;
-			points.color.a = 0.6;
+	void visualizeObstacles(const scots::UniformGrid &ss, std::vector<std::vector<int>> &maps)
+	{
+		// visaulization parameters
+		visualization_msgs::Marker points;
 
-			points.lifetime = ros::Duration();
+		points.header.frame_id = "origin";
+		points.header.stamp = ros::Time::now();
 
-			// total number of cells
-			abs_type num_cell = ss.size();
-			std::vector<abs_type> NN = ss.get_nn();
+		points.ns = "obstacles";
+		points.id = 0;
+		points.type = visualization_msgs::Marker::POINTS;
+		points.action = visualization_msgs::Marker::ADD;
 
-			std::cout << "Number of cells: " << num_cell << std::endl;
+		points.pose.orientation.w = 1;
 
-			// check for only (x, y) state space (num_grid_x * num_grid_y)
-			for(abs_type i = 0; i < NN[2]; i++) {
-				state_type x;
-				ss.itox(i, x);
+		points.scale.x = 0.6;
+		points.scale.y = 0.6;
 
-				// ratio of scots grid(s_eta) to map grid (resolution)
-				// 0.2 is added for floating point numbers
-				std::vector<int> grid_ratio{int((ss.get_eta()[0] / resolution) + 0.2), int((ss.get_eta()[1] / resolution) + 0.2)};
+		points.color.r = 1.0f;
+		points.color.g = 1.0f;
+		points.color.a = 0.6;
 
-				// coordinates to search in map matrix
-				// 0.2 is added for floating point numbers.
-				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
+		points.lifetime = ros::Duration();
 
-				geometry_msgs::Point pt;
+		// total number of cells
+		abs_type num_cell = ss.size();
+		std::vector<abs_type> NN = ss.get_nn();
 
-				for(int i = -1; i < grid_ratio[1] + 1; i++) {
-					for(int j = -1; j < grid_ratio[0] + 1; j++) {
-						if(cord[1] + i >= 0 && cord[1] + i< height && cord[0] + j >= 0 && cord[0] + j < width) {
-							if(maps[cord[1] + i][cord[0] + j] != 0){
-								pt.x = x[0] + 0.05;
-								pt.y = x[1] + 0.05;
-								points.points.push_back(pt);
-							}
+		std::cout << "Number of cells: " << num_cell << std::endl;
+
+		// check for only (x, y) state space (num_grid_x * num_grid_y)
+		for (abs_type i = 0; i < NN[2]; i++)
+		{
+			state_type x;
+			ss.itox(i, x);
+
+			// ratio of scots grid(s_eta) to map grid (resolution)
+			// 0.2 is added for floating point numbers
+			std::vector<int> grid_ratio{int((ss.get_eta()[0] / resolution) + 0.2), int((ss.get_eta()[1] / resolution) + 0.2)};
+
+			// coordinates to search in map matrix
+			// 0.2 is added for floating point numbers.
+			std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
+
+			geometry_msgs::Point pt;
+
+			for (int i = -1; i < grid_ratio[1] + 1; i++)
+			{
+				for (int j = -1; j < grid_ratio[0] + 1; j++)
+				{
+					if (cord[1] + i >= 0 && cord[1] + i < height && cord[0] + j >= 0 && cord[0] + j < width)
+					{
+						if (maps[cord[1] + i][cord[0] + j] != 0)
+						{
+							pt.x = x[0] + 0.05;
+							pt.y = x[1] + 0.05;
+							points.points.push_back(pt);
 						}
 					}
 				}
-				markers_pub.publish(points);
 			}
+			markers_pub.publish(points);
 		}
+	}
 
-		void visualizeTargets(const autoracing_msgs::Target &tr) {
-			visualization_msgs::Marker target;
+	void visualizeTargets(const autoracing_msgs::Target &tr)
+	{
+		visualization_msgs::Marker target;
 
-			target.header.frame_id = "origin";
-			target.header.stamp = ros::Time::now();
+		target.header.frame_id = "origin";
+		target.header.stamp = ros::Time::now();
 
-			target.ns = "target_window";
-			
-			target.id = 0;
-			target.type = visualization_msgs::Marker::POINTS;
-			target.action = visualization_msgs::Marker::ADD;
+		target.ns = "target_window";
 
-			target.pose.orientation.w = 1;
+		target.id = 0;
+		target.type = visualization_msgs::Marker::POINTS;
+		target.action = visualization_msgs::Marker::ADD;
 
-			target.scale.x = target.scale.y = tr.window;
+		target.pose.orientation.w = 1;
 
-			target.color.r = 1.0f;
+		target.scale.x = target.scale.y = tr.window;
 
-			target.color.a = 1.0;
+		target.color.r = 1.0f;
 
-			target.lifetime = ros::Duration();
+		target.color.a = 1.0;
 
-			double diff = tr.window;
+		target.lifetime = ros::Duration();
 
-			geometry_msgs::Point pt;
-				
-			pt.x = (tr.points[1] + tr.points[0] ) / 2.0;
-			pt.y = (tr.points[3] + tr.points[2] ) / 2.0;
+		double diff = tr.window;
 
-			target.points.push_back(pt);
-			markers_pub.publish(target);
+		geometry_msgs::Point pt;
 
-		}
+		pt.x = (tr.points[1] + tr.points[0]) / 2.0;
+		pt.y = (tr.points[3] + tr.points[2]) / 2.0;
+
+		target.points.push_back(pt);
+		markers_pub.publish(target);
+	}
+
+	/**
+	 * Use: Finds the winning domain for a given target
+	 * Inputs: tf(TransitionFunction), tr(Target)
+	 * Output: win_domin(WinningDomain)
+	 */
+	/*
+	scots::WinningDomain getDomain(const scots::UniformGrid &ss, const scots::TransitionFunction &tf, const autoracing_msgs::Target &tr)
+	{
+
+		// defining target set
+		auto target = [&ss, &tr](const abs_type &idx)
+		{
+			state_type x;
+			ss.itox(idx, x);
+			// function returns 1 if cell associated with x is in target set
+			if (tr.points[0] <= x[0] && x[0] <= tr.points[1] &&
+				tr.points[2] <= x[1] && x[1] <= tr.points[3])
+			{
+				return true;
+			}
+			return false;
+		};
+
+		std::cout << "\nSynthesis for target, " << tr.id << std::endl;
+		tt.tic();
+		scots::WinningDomain win_domain = scots::solve_reachability_game(tf, target);
+		tt.toc();
+		std::cout << "\nWinning domain for target id \'" << tr.id << "\' is " << win_domain.get_size() << std::endl;
+
+		return win_domain;
+	}
+	*/
+
+	/**
+	 * Use: Publishes an AckermannDriveStamped Message into drive topic of F1Tenth Car
+	 * Inputs: speed(double), steering_angle(double)
+	 * Output: Void
+	 */
+	void publishDrive(double speed, double steering_angle)
+	{
+		ackermann_msgs::AckermannDriveStamped drive_msg;
+		drive_msg.drive.speed = speed;
+		drive_msg.drive.steering_angle = steering_angle;
+
+		drive_msg.header.stamp = ros::Time::now();
+		robot_drive.publish(drive_msg);
+	}
+
+	static bool comparing(input_type &arr1, input_type &arr2)
+	{
+		bool flag = false;
+		if (arr1[0] > arr2[0])
+			flag = true;
+		else if (arr1[0] == arr2[0])
+			flag = arr2[1] > arr1[1];
+		return flag;
+	}
+
+	/**
+	 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
+	 * 		and publishes the inputs to the vehicle
+	 * Inputs: controller(StaticController), tr(Target)
+	 * Output: void
+	 */
+	void reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr)
+	{
 
 		/**
-		 * Use: Finds the winning domain for a given target
-		 * Inputs: tf(TransitionFunction), tr(Target)
-		 * Output: win_domin(WinningDomain)
-		*/
-		scots::WinningDomain getDomain(const scots::UniformGrid &ss, const scots::TransitionFunction &tf, const autoracing_msgs::Target &tr) {
-			
-			// defining target set
-			auto target = [&ss, &tr](const abs_type& idx) {
-				state_type x;
-				ss.itox(idx, x);
-				// function returns 1 if cell associated with x is in target set 
-				if (tr.points[0] <= x[0] && x[0] <= tr.points[1] && 
-					tr.points[2] <= x[1] && x[1] <= tr.points[3]){
-				  return true;
-				}
-				return false;
-			};
+		 * This is the ODE using Dynamic Model for an ackermann car
+		 */
+		auto vehicle_post = [](state_type &x, const input_type &u) {
+		  /* the ode describing the vehicle */
+		  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+		    double alpha=std::atan(std::tan(u[1]) / 2.0);
+		    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+		    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+		    xx[2] = u[0] * std::tan(u[1]);
+		  };
+		  /* simulate (use 10 intermediate steps in the ode solver) */
+		  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+		};
 
-			std::cout << "\nSynthesis for target, " << tr.id << std::endl;
-			tt.tic();
-			scots::WinningDomain win_domain = scots::solve_reachability_game(tf, target);
-			tt.toc();
-			std::cout << "\nWinning domain for target id \'" << tr.id << "\' is " << win_domain.get_size() <<std::endl;
+		// // Kinematic Bicycle Model - ODE for F1Tenth Car
+		// auto vehicle_post = [](state_type &x, const input_type &u)
+		// {
+		// 	/* the ode describing the vehicle */
+		// 	auto rhs = [](state_type &xx, const state_type &x, const input_type &u)
+		// 	{
+		// 		double lr = 0.17145;
+		// 		double lf = 0.15875;
+		// 		double dr = lr / (lr + lf);
+		// 		double alpha = std::atan(std::tan(u[1]) * dr);
+		// 		xx[0] = u[0] * std::cos(alpha + x[2]);
+		// 		xx[1] = u[0] * std::sin(alpha + x[2]);
+		// 		xx[2] = u[0] * std::sin(alpha) / lr;
+		// 	};
+		// 	/* simulate (use 10 intermediate steps in the ode solver) */
+		// 	scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau / 10, 10);
+		// };
 
-			return win_domain;
-		}
+		std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
 
-		/**
-		 * Use: Publishes an AckermannDriveStamped Message into drive topic of F1Tenth Car
-		 * Inputs: speed(double), steering_angle(double)
-		 * Output: Void 
-		*/
-		void publishDrive(double speed,double steering_angle){
-			ackermann_msgs::AckermannDriveStamped drive_msg;
-			drive_msg.drive.speed = speed;
-			drive_msg.drive.steering_angle = steering_angle;
+		state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
-			drive_msg.header.stamp = ros::Time::now();
-			robot_drive.publish(drive_msg);
-		}
+		// path visualization object
+		nav_msgs::Path path;
+		path.header.stamp = ros::Time::now();
+		path.header.frame_id = "origin";
 
-		static bool comparing(input_type &arr1, input_type &arr2){
-			bool flag=false;
-			if(arr1[0]>arr2[0])
-				flag=true;
-			else if(arr1[0]==arr2[0])
-				flag = arr2[1]>arr1[1];
-			return flag;
-		}
+		geometry_msgs::PoseStamped path_poses;
 
-		/**
-		 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
-		 * 		and publishes the inputs to the vehicle
-		 * Inputs: controller(StaticController), tr(Target)
-		 * Output: void
-		*/
-		void reachTarget(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
-			
-			/**
-			 * This is the ODE using Dynamic Model for an ackermann car
-			*/
-			// auto vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double alpha=std::atan(std::tan(u[1]) / 2.0);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			//     xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
-			
-			// Kinematic Bicycle Model - ODE for F1Tenth Car
-			auto  vehicle_post = [](state_type &x, const input_type &u) {
-			  /* the ode describing the vehicle */
-			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
-				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
-			  };
-			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau/10, 10);
-			};
+		path_poses.header.stamp = ros::Time::now();
+		path_poses.header.frame_id = "origin";
 
-			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);	
+		path_poses.pose.position.x = robot_state[0];
+		path_poses.pose.position.y = robot_state[1];
+		path_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
 
-			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+		path.poses.push_back(path_poses);
 
-			// path visualization object
-			nav_msgs::Path path;
-			path.header.stamp = ros::Time::now();
-			path.header.frame_id = "origin";
+		while (ros::ok())
+		{
 
-			geometry_msgs::PoseStamped path_poses;
+			if (as_.isPreemptRequested())
+			{
+				std::cout << "\nPreempted request for, " << action_name_.c_str() << std::endl;
+				// set the action state to preempted
+				as_.setPreempted();
+				break;
+			}
 
-			path_poses.header.stamp = ros::Time::now();
-			path_poses.header.frame_id = "origin";
+			robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
-			path_poses.pose.position.x = robot_state[0];
-			path_poses.pose.position.y = robot_state[1];
-			path_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
+			feedback_.curr_pose = curr_pose;
 
-			path.poses.push_back(path_poses);
+			std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
 
-			while(ros::ok()) {
-				
-				if(as_.isPreemptRequested()) {
-					std::cout << "\nPreempted request for, " << action_name_.c_str() << std::endl;
-					// set the action state to preempted
-					as_.setPreempted();
-					break;
-				}
+			std::sort(control_inputs.begin(), control_inputs.end(), comparing);
 
-				robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+			// publishing the current feedback to action client
+			as_.publishFeedback(feedback_);
 
-				feedback_.curr_pose = curr_pose;
+			// this is to maintain, that robot will receive same speed for tau time.
+			ros::Time beginTime = ros::Time::now();
+			ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
+			ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
 
-				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
+			publishDrive(control_inputs[0][0], control_inputs[0][1]);
+			while (ros::Time::now() < endTime)
+			{
+				publishDrive(control_inputs[0][0], control_inputs[0][1]);
 
-				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
+				// Time between messages, so you don't blast out an thousands of
+				// messages in your tau secondperiod
+				ros::Duration(tau / 10).sleep();
 
-				// publishing the current feedback to action client
-				as_.publishFeedback(feedback_);
+				// pushing current pose in nav_msgs::Path for path visualization
+				path_poses.pose.position.x = curr_pose.x;
+				path_poses.pose.position.y = curr_pose.y;
+				path_poses.pose.orientation = createQuaternionMsgFromYaw(curr_pose.theta);
 
-				// this is to maintain, that robot will receive same speed for tau time.
-				ros::Time beginTime = ros::Time::now();
-				ros::Duration secondsIWantToSendMessagesFor = ros::Duration(tau);
-				ros::Time endTime = beginTime + secondsIWantToSendMessagesFor;
+				path.poses.push_back(path_poses);
 
-				publishDrive(control_inputs[0][0],control_inputs[0][1]);
-				while(ros::Time::now() < endTime )
+				path_pub.publish(path);
+
+				int infl_radius = 1;
+
+				if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius)
 				{
-					publishDrive(control_inputs[0][0],control_inputs[0][1]);
-
-					// Time between messages, so you don't blast out an thousands of
-					// messages in your tau secondperiod
-					ros::Duration(tau/10).sleep();
-
-					// pushing current pose in nav_msgs::Path for path visualization
-					path_poses.pose.position.x = curr_pose.x;
-					path_poses.pose.position.y = curr_pose.y;
-					path_poses.pose.orientation = createQuaternionMsgFromYaw(curr_pose.theta);
-
-					path.poses.push_back(path_poses);
-
-					path_pub.publish(path);
-
-					int infl_radius = 1;
-
-					if (tr.points[0] - infl_radius <= curr_pose.x && curr_pose.x <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= curr_pose.y && curr_pose.y <= tr.points[3] + infl_radius ){
-						// publishDrive(0.00001,0.0);
-						return;
-					}
-				  
+					// publishDrive(0.00001,0.0);
+					return;
 				}
 			}
 		}
+	}
 
-		/**
-		 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
-		 * 		and publishes the inputs to the vehicle
-		 * Inputs: controller(StaticController), tr(Target)
-		 * Output: void
-		*/
-		void simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr) {
-			//defining dynamics of robot
-			ROS_INFO_STREAM("Publishing the trajectory...");
+	/**
+	 * Use: Closed Loop control from initial position to the Final Target using the lookup table found in the controller
+	 * 		and publishes the inputs to the vehicle
+	 * Inputs: controller(StaticController), tr(Target)
+	 * Output: void
+	 */
+	void simulatePath(const scots::StaticController &controller, const autoracing_msgs::Target &tr)
+	{
+		// defining dynamics of robot
+		ROS_INFO_STREAM("Publishing the trajectory...");
 
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			//     double alpha=std::atan(std::tan(u[1]) / 2.0);
-			//     xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			//     xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			//     xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
+		auto  vehicle_post = [](state_type &x, const input_type &u) {
+		  /* the ode describing the vehicle */
+		  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+		    double alpha=std::atan(std::tan(u[1]) / 2.0);
+		    xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+		    xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+		    xx[2] = u[0] * std::tan(u[1]);
+		  };
+		  /* simulate (use 10 intermediate steps in the ode solver) */
+		  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+		};
 
-			// Kinematic Bicycle Model
-			auto  vehicle_post = [](state_type &x, const input_type &u) {
-			  /* the ode describing the vehicle */
-			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
-				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
-			  };
-			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			};
+		// // Kinematic Bicycle Model
+		// auto vehicle_post = [](state_type &x, const input_type &u)
+		// {
+		// 	/* the ode describing the vehicle */
+		// 	auto rhs = [](state_type &xx, const state_type &x, const input_type &u)
+		// 	{
+		// 		double lr = 0.17145;
+		// 		double lf = 0.15875;
+		// 		double dr = lr / (lr + lf);
+		// 		double alpha = std::atan(std::tan(u[1]) * dr);
+		// 		xx[0] = u[0] * std::cos(alpha + x[2]);
+		// 		xx[1] = u[0] * std::sin(alpha + x[2]);
+		// 		xx[2] = u[0] * std::sin(alpha) / lr;
+		// 	};
+		// 	/* simulate (use 10 intermediate steps in the ode solver) */
+		// 	scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+		// };
 
-			// defining target set
-			auto target = [&tr](const state_type& x) {
-				// function returns 1 if cell associated with x is in target set 
-				int infl_radius = 2;
-				if (tr.points[0] - infl_radius <= x[0] && x[0] <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= x[1] && x[1] <= tr.points[3] + infl_radius)
-				  return true;
-				return false;
-			};
+		// // defining target set
+		auto target = [&tr](const state_type &x)
+		{
+			// function returns 1 if cell associated with x is in target set
+			int infl_radius = 2;
+			if (tr.points[0] - infl_radius <= x[0] && x[0] <= tr.points[1] + infl_radius && tr.points[2] - infl_radius <= x[1] && x[1] <= tr.points[3] + infl_radius)
+				return true;
+			return false;
+		};
 
-			state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
+		state_type robot_state = {curr_pose.x, curr_pose.y, curr_pose.theta};
 
-			// path visualization objects
-			nav_msgs::Path trajectory;
-			trajectory.header.stamp = ros::Time::now();
-			trajectory.header.frame_id = "origin";
+		// path visualization objects
+		nav_msgs::Path trajectory;
+		trajectory.header.stamp = ros::Time::now();
+		trajectory.header.frame_id = "origin";
 
-			geometry_msgs::PoseStamped trajectory_poses;
+		geometry_msgs::PoseStamped trajectory_poses;
 
-			trajectory_poses.header.stamp = ros::Time::now();
-			trajectory_poses.header.frame_id = "origin";
+		trajectory_poses.header.stamp = ros::Time::now();
+		trajectory_poses.header.frame_id = "origin";
+
+		trajectory_poses.pose.position.x = robot_state[0];
+		trajectory_poses.pose.position.y = robot_state[1];
+		trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
+
+		trajectory.poses.push_back(trajectory_poses);
+
+		while (ros::ok())
+		{
+			// getting ready feedback handler
+			// std::cout << "Simulation: Robot's Current Pose: " << robot_state[0] << ", "
+			// 									  			  << robot_state[1] << ", "
+			// 									  			  << robot_state[2] << std::endl;
+
+			if (target(robot_state))
+			{
+				// std::cout << "Reached: " << robot_state[0] << ", "
+				// 						 << robot_state[1] << ", "
+				// 						 << robot_state[2] << std::endl;
+
+				trajectory_pub.publish(trajectory);
+				break;
+			}
+			std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
+			std::cout << control_inputs.size();
+			std::sort(control_inputs.begin(), control_inputs.end(), comparing);
+			vehicle_post(robot_state, control_inputs[0]);
 
 			trajectory_poses.pose.position.x = robot_state[0];
 			trajectory_poses.pose.position.y = robot_state[1];
 			trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
 
 			trajectory.poses.push_back(trajectory_poses);
-
-			while(ros::ok()) {
-				// getting ready feedback handler
-				// std::cout << "Simulation: Robot's Current Pose: " << robot_state[0] << ", " 
-				// 									  			  << robot_state[1] << ", " 
-				// 									  			  << robot_state[2] << std::endl;
-
-				if(target(robot_state)) {
-					// std::cout << "Reached: " << robot_state[0] << ", " 
-					// 						 << robot_state[1] << ", " 
-					// 						 << robot_state[2] << std::endl;
-
-					trajectory_pub.publish(trajectory);
-					break;
-				}
-				std::vector<input_type> control_inputs = controller.peek_control<state_type, input_type>(robot_state);
-				std::cout << control_inputs.size();
-				std::sort(control_inputs.begin(), control_inputs.end(), comparing);
-				vehicle_post(robot_state, control_inputs[0]);
-
-				trajectory_poses.pose.position.x = robot_state[0];
-				trajectory_poses.pose.position.y = robot_state[1];
-				trajectory_poses.pose.orientation = createQuaternionMsgFromYaw(robot_state[2]);
-
-				trajectory.poses.push_back(trajectory_poses);
-
-			}
 		}
-		
-		void processGoal(const autoracing_msgs::AutoRacingGoalConstPtr &goal) {
+	}
 
-			ros::Time t_begin = ros::Time::now();
+	void processGoal(const autoracing_msgs::AutoRacingGoalConstPtr &goal)
+	{
+		ros::Time t_begin = ros::Time::now();
 
-			struct rusage usage;
+		struct rusage usage;
 
-			// /* we integrate the vehicle ode by tau sec (the result is stored in x)  */
-			// auto  vehicle_post = [](state_type &x, const input_type &u) {
-			//   /* the ode describing the vehicle */
-			//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			// 	double alpha=std::atan(std::tan(u[1]) / 2.0);
-			// 	xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
-			// 	xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
-			// 	xx[2] = u[0] * std::tan(u[1]);
-			//   };
-			//   /* simulate (use 10 intermediate steps in the ode solver) */
-			//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
-			// };
+		// /* we integrate the vehicle ode by tau sec (the result is stored in x)  */
+		// auto  vehicle_post = [](state_type &x, const input_type &u) {
+		//   /* the ode describing the vehicle */
+		//   auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
+		// 	double alpha=std::atan(std::tan(u[1]) / 2.0);
+		// 	xx[0] = u[0] * std::cos(alpha + x[2]) / std::cos(alpha);
+		// 	xx[1] = u[0] * std::sin(alpha + x[2]) / std::cos(alpha);
+		// 	xx[2] = u[0] * std::tan(u[1]);
+		//   };
+		//   /* simulate (use 10 intermediate steps in the ode solver) */
+		//   scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+		// };
 
-			// Kinematic Bicycle Model
-			auto  vehicle_post = [](state_type &x, const input_type &u) {
-			  /* the ode describing the vehicle */
-			  auto rhs =[](state_type& xx,  const state_type &x, const input_type &u) {
-			    double lr = 0.17145;
+		// Kinematic Bicycle Model
+		auto vehicle_post = [](state_type &x, const input_type &u)
+		{
+			/* the ode describing the vehicle */
+			auto rhs = [](state_type &xx, const state_type &x, const input_type &u)
+			{
+				double lr = 0.17145;
 				double lf = 0.15875;
-				double dr = lr/(lr+lf);
-				double alpha=std::atan(std::tan(u[1]) * dr);
-			    xx[0] = u[0] * std::cos(alpha + x[2]);
-			    xx[1] = u[0] * std::sin(alpha + x[2]);
-			    xx[2] = u[0] * std::sin(alpha)/lr;
-			  };
-			  /* simulate (use 10 intermediate steps in the ode solver) */
-			  scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+				double dr = lr / (lr + lf);
+				double alpha = std::atan(std::tan(u[1]) * dr);
+				xx[0] = u[0] * std::cos(alpha + x[2]);
+				xx[1] = u[0] * std::sin(alpha + x[2]);
+				xx[2] = u[0] * std::sin(alpha) / lr;
 			};
+			/* simulate (use 10 intermediate steps in the ode solver) */
+			scots::runge_kutta_fixed4(rhs, x, u, state_dim, tau, 10);
+		};
 
-			/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
-			// auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-			// 	const state_type w = {{0.01, 0.01}};
-			//   	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
-			//   	r[0] = r[0] + c * r[2] * tau + w[0];
-			//   	r[1] = r[1] + c * r[2] * tau + w[1];
-			// };
+		/* we integrate the growth bound by 0.3 sec (the result is stored in r)  */
+		auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
+			const state_type w = {{0.01, 0.01}};
+		  	double c = std::abs(u[0]) * std::sqrt(std::tan(u[1]) * std::tan(u[1]) / 4.0+1);
+		  	r[0] = r[0] + c * r[2] * tau + w[0];
+		  	r[1] = r[1] + c * r[2] * tau + w[1];
+		};
 
-			auto radius_post = [](state_type &r, const state_type &, const input_type &u) {
-				const state_type w = {{0.05, 0.05}};
-				r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
-				r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
-			};
+		// auto radius_post = [](state_type &r, const state_type &, const input_type &u)
+		// {
+		// 	const state_type w = {{0.05, 0.05}};
+		// 	r[0] = r[0] + r[2] * std::abs(u[0]) * tau + w[0];
+		// 	r[1] = r[1] + r[2] * std::abs(u[0]) * tau + w[1];
+		// };
 
-			double lb = width * resolution;
-			double ub = height * resolution;
-			
-			state_type s_lb={{0, 0, -3.5}};
-			state_type s_ub={{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
-			state_type s_eta={{0.3, 0.3, 0.17}};
+		double lb = width * resolution;
+		double ub = height * resolution;
 
-			scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
-			std::cout << std::endl;
-			ss.print_info();
-			
-			/**
-			 * @todo Parameter Tuning
-			*/
+		state_type s_lb = {{0, 0, -3.5}};
+		state_type s_ub = {{std::ceil(lb * 100.0) / 100.0, std::ceil(ub * 100.0) / 100.0, 3.5}};
+		state_type s_eta = {{0.3, 0.3, 0.17}};
 
-			double max_speed = 7, max_steering_angle = 0.3;
-			input_type i_lb={{0, -1*max_steering_angle}};
-			input_type i_ub={{max_speed,  max_steering_angle}};
-			input_type i_eta={{0.13, 0.013}};
-			  
-			scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
-			std::cout << std::endl;	
-			is.print_info();
-			
-			std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
+		scots::UniformGrid ss(state_dim, s_lb, s_ub, s_eta);
+		std::cout << std::endl;
+		ss.print_info();
 
-			formMap(ss,maps);
+		// /**
+		//  * @todo Parameter Tuning
+		//  */
 
-			visualizeObstacles(ss, maps);
-			visualizeTargets(goal->targets[0]);
+		// double max_speed = 7, max_steering_angle = 0.3;
+		// input_type i_lb = {{0, -1 * max_steering_angle}};
+		// input_type i_ub = {{max_speed, max_steering_angle}};
+		// input_type i_eta = {{0.13, 0.013}};
 
-			auto avoid = [&maps, &ss, width=width, height=height, resolution=resolution](const abs_type& idx) {
-				state_type x;
-				ss.itox(idx, x);
+		// scots::UniformGrid is(input_dim, i_lb, i_ub, i_eta);
+		// std::cout << std::endl;
+		// is.print_info();
 
-				// ratio of scots grid(s_eta) to map grid (resolution)
-				// 0.2 is added for floating point numbers
-				std::vector<int> grid_ratio{int((ss.get_eta()[0] / resolution) + 0.2), int((ss.get_eta()[1] / resolution) + 0.2)};
+		std::vector<std::vector<int>> maps = getMapMatrix(map_vector, width, height);
 
-				// coordinates to search in map matrix
-				// 0.2 is added for floating point numbers.
-				std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
-				int infl_rad = 0.5/resolution;
-				for(int i = -1; i < grid_ratio[1] + 1; i++) {
-					for(int j = -1; j < grid_ratio[0] + 1; j++) {
-						if(cord[1] + i >= 0 && cord[1] + i< height && cord[0] + j >= 0 && cord[0] + j < width) {
-							//This is used to add an inflation radius
-							for(int k=0;k<=infl_rad;k++){
-								if(maps[cord[1] + i + k][cord[0] + j + k] != 0 || maps[cord[1] + i + k][cord[0] + j - k] != 0 || maps[cord[1] + i - k][cord[0] + j + k] != 0 || maps[cord[1] + i - k][cord[0] + j - k] != 0){
-									return true;
-								}
-								//This is used to avoid boundary conditions
-								if(cord[1]+i<=infl_rad || cord[0]+j<=infl_rad || cord[1]+i+infl_rad>=grid_ratio[1] || cord[1]+i+infl_rad>=grid_ratio[1])
-									return false;
+		formMap(maps, height, width, resolution);
+
+		visualizeObstacles(ss, maps);
+		visualizeTargets(goal->targets[0]);
+		/*
+		auto avoid = [&maps, &ss, width = width, height = height, resolution = resolution](const abs_type &idx)
+		{
+			state_type x;
+			ss.itox(idx, x);
+
+			// ratio of scots grid(s_eta) to map grid (resolution)
+			// 0.2 is added for floating point numbers
+			std::vector<int> grid_ratio{int((ss.get_eta()[0] / resolution) + 0.2), int((ss.get_eta()[1] / resolution) + 0.2)};
+
+			// coordinates to search in map matrix
+			// 0.2 is added for floating point numbers.
+			std::vector<int> cord{int((x[0] / resolution) + 0.2), int((x[1] / resolution) + 0.2)};
+			int infl_rad = 0.5 / resolution;
+			for (int i = -1; i < grid_ratio[1] + 1; i++)
+			{
+				for (int j = -1; j < grid_ratio[0] + 1; j++)
+				{
+					if (cord[1] + i >= 0 && cord[1] + i < height && cord[0] + j >= 0 && cord[0] + j < width)
+					{
+						// This is used to add an inflation radius
+						for (int k = 0; k <= infl_rad; k++)
+						{
+							if (maps[cord[1] + i + k][cord[0] + j + k] != 0 || maps[cord[1] + i + k][cord[0] + j - k] != 0 || maps[cord[1] + i - k][cord[0] + j + k] != 0 || maps[cord[1] + i - k][cord[0] + j - k] != 0)
+							{
+								return true;
 							}
-						}	
+							// This is used to avoid boundary conditions
+							if (cord[1] + i <= infl_rad || cord[0] + j <= infl_rad || cord[1] + i + infl_rad >= grid_ratio[1] || cord[1] + i + infl_rad >= grid_ratio[1])
+								return false;
+						}
 					}
 				}
-				return false;
-			};
-
-			int num_targets = goal->targets.size();
-
-			for(int i = 0; i < num_targets; i++) {
-				visualizeTargets(goal->targets[i]);
-				ros::Duration(1).sleep();
 			}
+			return false;
+		};
 
-			std::cout << "\nComputing the transition function." << std::endl;
-  
-			/* transition function of symbolic model */
-			scots::TransitionFunction tf;
-			scots::Abstraction<state_type,input_type> abs(ss, is);
+		int num_targets = goal->targets.size();
 
-			ros::Time s_begin = ros::Time::now();
-			
-			tt.tic();
-			abs.compute_gb(tf, vehicle_post, radius_post, avoid);
-			tt.toc();
-
-			if(!getrusage(RUSAGE_SELF, &usage))
-				std::cout << "\nMemory per transition: " << usage.ru_maxrss / (double)tf.get_no_transitions() << std::endl;
-				
-			std::cout << "Number of transitions: " << tf.get_no_transitions() << std::endl;
-
-			// Parsing targets
-			abs_type total_domain = ss.size();
-
-			
-			std::vector<scots::WinningDomain> domains;
-			std::vector<int> targets_no;				
-			
-			/**
-			 * Finds the winning domain and stores that in a file
-			*/
-			for(int i = 0; i < num_targets; i++) {
-				visualizeTargets(goal->targets[i]);
-				scots::WinningDomain win_domain = getDomain(ss, tf, goal->targets[i]);
-
-				std::cout<<"Total domain and Winning domain: "<<total_domain<<","<<win_domain.get_size()<<std::endl;
-				if(0.02 * total_domain < win_domain.get_size()) {
-					// std::cout << "Writing the winning domain to a file." << std::endl;
-					// std::string s1 = "WinDomain";
-					// std::string s2 = s1 + std::to_string(i);
-					// if(write_to_file(win_domain, s2))
-					// 	std::cout << "The controller for Target: "<<i<<std::endl;
-					domains.push_back(win_domain);
-					targets_no.push_back(i);
-				}
-				else
-					ROS_INFO_STREAM("Winning domain is less than 2% of total domain, going for the next target.\n");	
-			}
-
-			/**
-			 * Finds the controller from the winning domain read from the file and stores it in a file
-			*/
-			ros::Duration synthesis_time = ros::Time::now() - s_begin;
-			scots::StaticController controller;
-			for(int i = 0; i < targets_no.size(); i++) {
-				// scots::WinningDomain win_domain;
-				// std::string s3 = "WinDomain";
-				// std::string s4 = s3 + std::to_string(targets_no[i]);
-				// if(read_from_file(win_domain,s4))
-				// 	std::cout<<"File Found.\n";
-				// controller = scots::StaticController(ss, is, std::move(win_domain));
-				controller = scots::StaticController(ss, is, std::move(domains[i]));
-				std::cout << "Writing the controller to a file." << std::endl;
-				std::string s1 = "AutoRacing";
-				std::string s2 = s1 + std::to_string(targets_no[i]);
-				if(write_to_file(controller, s2))
-					std::cout << "The controller for Target: "<<targets_no[i]<<std::endl;
-			}
-
-			/**
-			 * Simulates the path and make the bot move according to the controller read from the file
-			*/
-			int i = 0;
-			while(1){	
-				visualizeTargets(goal->targets[targets_no[i]]);
-				std::cout << "\n\nRobot started, Reaching to the target." << std::endl;
-				std::string s1 = "AutoRacing";
-				std::string s2 = s1 + std::to_string(targets_no[i]);
-				if(read_from_file(controller,s2))
-					std::cout<<"File Found.\n";
-				simulatePath(controller, goal->targets[targets_no[i]]);
-				reachTarget(controller, goal->targets[targets_no[i]]);
-				i++;
-				if(i>=targets_no.size())
-					i=0;
-			}
-			ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
+		for (int i = 0; i < num_targets; i++)
+		{
+			visualizeTargets(goal->targets[i]);
+			ros::Duration(1).sleep();
 		}
+
+		std::cout << "\nComputing the transition function." << std::endl;
+		*/
+
+		/* transition function of symbolic model */
+		/*
+		scots::TransitionFunction tf;
+		scots::Abstraction<state_type, input_type> abs(ss, is);
+
+		ros::Time s_begin = ros::Time::now();
+
+		tt.tic();
+		abs.compute_gb(tf, vehicle_post, radius_post, avoid);
+		tt.toc();
+
+		if (!getrusage(RUSAGE_SELF, &usage))
+			std::cout << "\nMemory per transition: " << usage.ru_maxrss / (double)tf.get_no_transitions() << std::endl;
+
+		std::cout << "Number of transitions: " << tf.get_no_transitions() << std::endl;
+
+		// Parsing targets
+		abs_type total_domain = ss.size();
+
+		std::vector<scots::WinningDomain> domains;
+		std::vector<int> targets_no;
+		*/
+		/**
+		 * Finds the winning domain and stores that in a file
+		 */
+		/*
+		for (int i = 0; i < num_targets; i++)
+		{
+			visualizeTargets(goal->targets[i]);
+			scots::WinningDomain win_domain = getDomain(ss, tf, goal->targets[i]);
+
+			std::cout << "Total domain and Winning domain: " << total_domain << "," << win_domain.get_size() << std::endl;
+			if (0.02 * total_domain < win_domain.get_size())
+			{
+				// std::cout << "Writing the winning domain to a file." << std::endl;
+				// std::string s1 = "WinDomain";
+				// std::string s2 = s1 + std::to_string(i);
+				// if(write_to_file(win_domain, s2))
+				// 	std::cout << "The controller for Target: "<<i<<std::endl;
+				domains.push_back(win_domain);
+				targets_no.push_back(i);
+			}
+			else
+				ROS_INFO_STREAM("Winning domain is less than 2% of total domain, going for the next target.\n");
+		}
+		*/
+
+		/**
+		 * Finds the controller from the winning domain read from the file and stores it in a file
+		 */
+
+		/*
+		ros::Duration synthesis_time = ros::Time::now() - s_begin;
+		scots::StaticController controller;
+		for (int i = 0; i < targets_no.size(); i++)
+		{
+			// scots::WinningDomain win_domain;
+			// std::string s3 = "WinDomain";
+			// std::string s4 = s3 + std::to_string(targets_no[i]);
+			// if(read_from_file(win_domain,s4))
+			// 	std::cout<<"File Found.\n";
+			// controller = scots::StaticController(ss, is, std::move(win_domain));
+			controller = scots::StaticController(ss, is, std::move(domains[i]));
+			std::cout << "Writing the controller to a file." << std::endl;
+			std::string s1 = "AutoRacing";
+			std::string s2 = s1 + std::to_string(targets_no[i]);
+			if (write_to_file(controller, s2))
+				std::cout << "The controller for Target: " << targets_no[i] << std::endl;
+		}
+		*/
+		/**
+		 * Simulates the path and make the bot move according to the controller read from the file
+		 */
+		/*
+		int i = 0;
+		while (1)
+		{
+			visualizeTargets(goal->targets[targets_no[i]]);
+			std::cout << "\n\nRobot started, Reaching to the target." << std::endl;
+			std::string s1 = "AutoRacing";
+			std::string s2 = s1 + std::to_string(targets_no[i]);
+			if (read_from_file(controller, s2))
+				std::cout << "File Found.\n";
+			simulatePath(controller, goal->targets[targets_no[i]]);
+			reachTarget(controller, goal->targets[targets_no[i]]);
+			i++;
+			if (i >= targets_no.size())
+				i = 0;
+		}
+		*/
+		// std::string s2 = s1 + std::to_string(targets_no[i]);
+		// if (read_from_file(controller, s2))
+		// 	std::cout << "File Found.\n";
+		// simulatePath(controller, goal->targets[targets_no[i]]);
+		// reachTarget(controller, goal->targets[targets_no[i]]);
+		ros::Duration completion_time = ros::Time::now() - t_begin - ros::Duration(10);
+	}
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
 	// ros node initialize
 	ros::init(argc, argv, "scotsActionServer");
 
